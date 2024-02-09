@@ -1,26 +1,49 @@
-#include <stdio.h>
-#include <stdlib.h> //delay
-#include <math.h>   //sin, cos
-#include <unistd.h>
-#include <time.h> //clock
+#include <stdio.h>      // printf
+#include <stdlib.h>     // delay
+#include <math.h>       // sin, cos, tan, acos
+#include <unistd.h>     // usleep
+#include <time.h>       // clock
+#include <termios.h>    // terminal fuckery
 
 #define ifnt(condition) if (!condition)
 #define otherwise else if
 
-#define H_RESOLUTION 180
-#define V_RESOLUTION 45
+#define H_RESOLUTION 80
+#define V_RESOLUTION 20
 // expanded grayscale
-#define BRIGHTNESS(depth) ".'`^\",:;Il!i><~+_-?][}{1)(|\\/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%%B@$"[depth >= 0 ? (depth < 69 ? depth : 68) : 0]
+#define BRIGHTNESS(depth) "$@B%%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrjft/\\|()1{}[]?-_+~<>i!lI;:,\"^`'."[depth >= 0 ? (depth < 69 ? depth : 68) : 0]
 // reversed grayscale
-//
-// "$@B%%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrjft/\\|()1{}[]?-_+~<>i!lI;:,\"^`'."
+// ".'`^\",:;Il!i><~+_-?][}{1)(|\\/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%%B@$"
+// 
 
 // simple grayscale
 //  #define BRIGHTNESS(depth) ".,-~:;=!*#$@"[depth > 0 ? depth : 0]
 
+
+struct termios orig_termios;
+
+void restore_term()
+{
+    tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios);
+}
+
+void set_raw_term()
+{ // saves local variables before changing them, and changeing them back at program termination
+    tcgetattr(STDIN_FILENO, &orig_termios);
+    atexit(restore_term);
+    // changing them to not exho text input
+    struct termios raw = orig_termios;
+    raw.c_lflag &= ~(ECHO | ICANON);
+
+    tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
+}
+
 #define EPSILON 0.000001
 
-short FOV = 2;
+// program variables
+
+char FOV = 2;
+short poly_count;
 
 typedef struct vec3
 { // I have no fucking clue what axis these are
@@ -30,31 +53,40 @@ typedef struct vec3
     // double z; // depth axis
 } vec3;
 
-vec3 sub(vec3 v1, vec3 v2)
+vec3 sub(vec3 v0, vec3 v1)
 {
     vec3 product;
-    product.x = v1.x - v2.x;
-    product.y = v1.y - v2.y;
-    product.z = v1.z - v2.z;
+    product.x = v0.x - v1.x;
+    product.y = v0.y - v1.y;
+    product.z = v0.z - v1.z;
     return product;
 }
 
-vec3 cross(vec3 v1, vec3 v2)
+vec3 cross(vec3 v0, vec3 v1)
 {
     vec3 product;
-    product.x = v1.y * v2.z - v1.z * v2.y;
-    product.y = v1.z * v2.x - v1.x * v2.z;
-    product.z = v1.x * v2.y - v1.y * v2.x;
+    product.x = v0.y * v1.z - v0.z * v1.y;
+    product.y = v0.z * v1.x - v0.x * v1.z;
+    product.z = v0.x * v1.y - v0.y * v1.x;
     return product;
 }
 
-double dot(vec3 v1, vec3 v2)
+vec3 scale(vec3 v0, double scalar)
+{
+    return (vec3){v0.x*scalar, v0.y*scalar, v0.z*scalar};
+}
+
+double dot(vec3 v0, vec3 v1)
 {
     double product = 0;
-    product += v1.x * v2.x;
-    product += v1.y * v2.y;
-    product += v1.z * v2.z;
+    product += v0.x * v1.x;
+    product += v0.y * v1.y;
+    product += v0.z * v1.z;
     return product;
+}
+
+double mag(vec3 v0) {
+    return sqrt(v0.x * v0.x + v0.y *v0.y + v0.z * v0.z);
 }
 
 // general vec3 rotation matrix
@@ -102,20 +134,11 @@ typedef struct triangle
     vec3 normal;
 } triangle;
 
-int test(triangle *tri)
-{
-    printf("%p\n", tri);
-    return 1;
-}
-
 // implementation of Tomas Moller & Ben Trumbore algorithm
-int ray_collision(triangle *tri, vec3 ray_orig, vec3 ray_vec, vec3 *uv_out)
+int ray_collision(triangle tri, vec3 ray_orig, vec3 ray_vec, vec3 *uv_out)
 {
-    vec3 e1 = sub(tri->verts[1], tri->verts[0]);
-    vec3 e2 = sub(tri->verts[2], tri->verts[0]);
-    // computes normal
-    // maybe put in an if statement if it already has been before this render
-    tri->normal = cross(e1, e2);
+    vec3 e1 = sub(tri.verts[1], tri.verts[0]);
+    vec3 e2 = sub(tri.verts[2], tri.verts[0]);
     vec3 ce2 = cross(ray_vec, e2);
     double det = dot(e1, ce2);
 
@@ -128,7 +151,7 @@ int ray_collision(triangle *tri, vec3 ray_orig, vec3 ray_vec, vec3 *uv_out)
         return 0;
 
     double inv_det = 1.0 / det;
-    vec3 s = sub(ray_orig, tri->verts[0]);
+    vec3 s = sub(ray_orig, tri.verts[0]);
     double u = inv_det * dot(s, ce2);
     if (u < 0 || u > 1)
         return 0;
@@ -145,39 +168,78 @@ int ray_collision(triangle *tri, vec3 ray_orig, vec3 ray_vec, vec3 *uv_out)
     return 1;
 }
 
-void t_rotate(triangle *tri, double x_rad, double y_rad, double z_rad)
+// returns new triangle to not mutate orignal, does mutate originals normal vector
+triangle t_rotate(triangle *tri, double x_rad, double y_rad, double z_rad)
 {
+    triangle result;
     for (char i = 0; i < 3; i++)
     {
-        tri->verts[i] = rotate(tri->verts[i], x_rad, y_rad, z_rad);
+        result.verts[i] = rotate(tri->verts[i], x_rad, y_rad, z_rad);
     }
+    vec3 e0 = sub(result.verts[1], result.verts[0]);
+    vec3 e1 = sub(result.verts[2], result.verts[0]);
+    tri->normal = cross(e0, e1);
+    return result;
 }
+
+#include "shapes.c"
 
 int main()
 {
-    double tan_30 = 2.5 / (tan(0.5235));
-    triangle tri[12];
+    set_raw_term();
+    poly_count = 8;
+    triangle mesh[poly_count];
 
-    tri[4].verts[0] = (vec3){5, 0, 0};
-    tri[4].verts[2] = (vec3){0, 0, 0};
-    tri[4].verts[1] = (vec3){2.5, tan_30, 0};
-
-    tri[1].verts[0] = (vec3){0, 0, 0};
-    tri[1].verts[2] = (vec3){5, 0, 0};
-    tri[1].verts[1] = (vec3){2.5, 2.5, 5};
-
-    tri[2].verts[0] = (vec3){5, 0, 0};
-    tri[2].verts[2] = (vec3){2.5, tan_30, 0};
-    tri[2].verts[1] = (vec3){2.5, 2.5, 5};
-
-    tri[3].verts[0] = (vec3){2.5, tan_30, 0};
-    tri[3].verts[2] = (vec3){0, 0, 0};
-    tri[3].verts[1] = (vec3){2.5, 2.5, 5};
-
-    triangle tri_1;
-    tri_1.verts[0] = (vec3){5, 0, 0};
-    tri_1.verts[1] = (vec3){0, 0, 0};
-    tri_1.verts[2] = (vec3){2.5, tan_30, 0};
+{
+    mesh[0].verts[0] = (vec3){1, 1, 1};
+    mesh[0].verts[1] = (vec3){1, -1, 1};
+    mesh[0].verts[2] = (vec3){-1, -1, 1};
+    
+    mesh[1].verts[0] = (vec3){1, 1, 1};
+    mesh[1].verts[1] = (vec3){-1, -1, 1};
+    mesh[1].verts[2] = (vec3){-1, 1, 1};
+    
+    mesh[2].verts[0] = (vec3){-1, 1, 1};
+    mesh[2].verts[1] = (vec3){-1, -1, 1};
+    mesh[2].verts[2] = (vec3){-1, -1, -1};
+    
+    mesh[3].verts[0] = (vec3){-1, 1, 1};
+    mesh[3].verts[1] = (vec3){-1, -1, -1};
+    mesh[3].verts[2] = (vec3){-1, 1, -1};
+    
+    mesh[4].verts[0] = (vec3){-1, 1, -1};
+    mesh[4].verts[1] = (vec3){-1, -1, -1};
+    mesh[4].verts[2] = (vec3){1, -1, -1};
+    
+    mesh[5].verts[0] = (vec3){-1, -1, -1};
+    mesh[5].verts[1] = (vec3){1, -1, -1};
+    mesh[5].verts[2] = (vec3){1, 1, -1};
+    
+    mesh[6].verts[0] = (vec3){1, -1, -1};
+    mesh[6].verts[1] = (vec3){1, 1, -1};
+    mesh[6].verts[2] = (vec3){1, -1, 1};
+    
+    mesh[7].verts[0] = (vec3){1, 1, -1};
+    mesh[7].verts[1] = (vec3){1, -1, 1};
+    mesh[7].verts[2] = (vec3){1, 1, 1};
+    
+    // mesh[8].verts[0] = (vec3){,,};
+    // mesh[8].verts[1] = (vec3){,,};
+    // mesh[8].verts[2] = (vec3){,,};
+    
+    // mesh[9].verts[0] = (vec3){,,};
+    // mesh[9].verts[1] = (vec3){,,};
+    // mesh[9].verts[2] = (vec3){,,};
+    
+    // mesh[10].verts[0] = (vec3){,,};
+    // mesh[10].verts[1] = (vec3){,,};
+    // mesh[10].verts[2] = (vec3){,,};
+    
+    // mesh[11].verts[0] = (vec3){,,};
+    // mesh[11].verts[1] = (vec3){,,};
+    // mesh[11].verts[2] = (vec3){,,};
+    
+}
 
     double h_step = FOV / (double)H_RESOLUTION;
     double h_start = -h_step * (H_RESOLUTION / 2);
@@ -185,22 +247,35 @@ int main()
     double v_start = -v_step * (V_RESOLUTION / 2);
     char buffer[H_RESOLUTION + 1];
 
-    for (int iii = 0; iii < 600; iii++)
+    for (char i = 0; i < poly_count*3; i++)
+    {
+        mesh[i/3].verts[i%3] = scale(mesh[i/3].verts[i%3], 5);
+    }
+    
+
+    vec3 light_vec3 = (vec3) {0.5,0,-0.5};
+    vec3 rotation;
+
+    // for (int iii = 0; iii < 6000; iii++)
+    int iii = 0;
+    while(1)
     {
         clock_t start = clock();
-        vec3 temp_coords, temp_coords2;
+        vec3 temp_coords;
         char hit;
+        double light_level;
         for (int ii = 0; ii < V_RESOLUTION; ii++)
         {
             for (int i = 0; i < H_RESOLUTION; i++)
             {
                 hit = 0;
-                temp_coords2.z = 10000;
-                for (char iV = 0; iV < 4; iV++)
-                {
-                    if (!ray_collision(&tri[iV + 1], (vec3){0, 0, 15}, (vec3){v_start + (ii * v_step), h_start + (i * h_step), -1}, &temp_coords))
+                for (char iV = 0; iV < poly_count; iV++)
+                {                       // rotate the input on render-step to reduce
+                                        // accumalitive deformation of mesh from rotation
+                    if (!ray_collision(t_rotate(&mesh[iV], 0.01*iii, 0.03*iii, 0*iii), (vec3){0, 0, 15}, (vec3){v_start + (ii * v_step), h_start + (i * h_step), -1}, &temp_coords))
                         continue;
-                    buffer[i] = BRIGHTNESS((int)floor(temp_coords.z + 1));
+                    light_level = acos(dot(light_vec3, mesh[iV].normal) / (mag(light_vec3) * mag(mesh[iV].normal)));
+                    buffer[i] = BRIGHTNESS((int)floor((light_level*57.3)/1.4));
                     hit = 1;
                 }
                 if (!hit)
@@ -209,24 +284,9 @@ int main()
             buffer[H_RESOLUTION] = 0;
             printf("%s\n", buffer);
         }
-        for (char iV = 0; iV < 4; iV++)
-        {
-            t_rotate(&tri[iV + 1], 0.03, 0.03, 0);
-        }
-
-        // printf("%f, %f, %f\n", tri.verts[0].x, tri.verts[0].y, tri.verts[0].z);
-        // printf("%f, %f, %f\n", tri.verts[1].x, tri.verts[1].y, tri.verts[1].z);
-        // printf("%f, %f, %f\n", tri.verts[2].x, tri.verts[2].y, tri.verts[2].z);
-        // printf("%f ---------------------------------\n", 0.003 * iii);
         clock_t end = clock() - start;
         usleep(16666 - ((int)end * 10));
-        // test(&tri[0]);
-        // printf("%f, %f, %f\n", tri[1].normal.x, tri[1].normal.y, tri[1].normal.z);
-        // printf("%f, %f, %f\n", tri[2].normal.x, tri[2].normal.y, tri[2].normal.z);
-        // printf("%f, %f, %f\n", tri[3].normal.x, tri[3].normal.y, tri[3].normal.z);
-        // printf("%f, %f, %f\n", tri[4].normal.x, tri[4].normal.y, tri[4].normal.z);
-        // printf("%p, %p, %f, %f\n", &tri_1, &tri[0], (&tri[0])->normal.y, tri[0].normal.x);
-        // printf("%d, %d, \n", sizeof(triangle), sizeof(vec3));
+        iii++;
     }
     return 0;
 }
