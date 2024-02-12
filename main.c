@@ -1,4 +1,4 @@
-#include <stdio.h>   // printf
+#include <stdio.h> // printf
 #include <stdlib.h>
 #include <math.h>    // sin, cos, tan, acos
 #include <unistd.h>  // usleep
@@ -41,7 +41,7 @@ void set_raw_term()
 
 // program variables
 
-char FOV = 2;
+char FOV = 1;
 short poly_count;
 
 typedef struct vec3
@@ -189,9 +189,6 @@ int main()
 
     cube(mesh);
 
-
-
-
     double h_step = FOV / (double)H_RESOLUTION;
     double h_start = -h_step * (H_RESOLUTION / 2);
     double v_step = FOV / (double)V_RESOLUTION;
@@ -203,7 +200,7 @@ int main()
         mesh[i / 3].verts[i % 3] = scale(mesh[i / 3].verts[i % 3], 5);
     }
 
-    vec3 light_vec3 = (vec3){0, 0, -0.5};
+    vec3 light_vec3 = (vec3){0.5, 0.5, -0.5};
     vec3 rotation;
 
     // for (int iii = 0; iii < 6000; iii++)
@@ -224,9 +221,9 @@ int main()
                 for (char iV = 0; iV < poly_count; iV++)
                 { // rotate the input on render-step to reduce
                   // accumalitive deformation of mesh from rotation
-                    if (!ray_collision(t_rotate(&mesh[iV], 0 * iii, 0 * iii, 0.03 * iii), (vec3){0, 0, 20}, (vec3){v_start + (ii * v_step), h_start + (i * h_step), -1}, &temp_coords))
+                    if (!ray_collision(t_rotate(&mesh[iV], 0 * iii, 0.01 * iii, 0 * iii), (vec3){0, 0, 20}, (vec3){(h_start + (i * h_step))*1.4, v_start + (ii * v_step), -1}, &temp_coords))
                         continue;
-                    if(temp_coords.z > depth)
+                    if (temp_coords.z > depth)
                         continue;
                     depth = temp_coords.z;
                     light_level = acos(dot(light_vec3, mesh[iV].normal) / (mag(light_vec3) * mag(mesh[iV].normal)));
