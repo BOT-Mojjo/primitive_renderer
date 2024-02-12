@@ -1,24 +1,23 @@
-#include <stdio.h>      // printf
-#include <stdlib.h>     // delay
-#include <math.h>       // sin, cos, tan, acos
-#include <unistd.h>     // usleep
-#include <time.h>       // clock
-#include <termios.h>    // terminal fuckery
+#include <stdio.h>   // printf
+#include <stdlib.h>
+#include <math.h>    // sin, cos, tan, acos
+#include <unistd.h>  // usleep
+#include <time.h>    // clock
+#include <termios.h> // terminal fuckery
 
 #define ifnt(condition) if (!condition)
 #define otherwise else if
 
 #define H_RESOLUTION 80
-#define V_RESOLUTION 20
+#define V_RESOLUTION 25
 // expanded grayscale
 #define BRIGHTNESS(depth) "$@B%%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrjft/\\|()1{}[]?-_+~<>i!lI;:,\"^`'."[depth >= 0 ? (depth < 69 ? depth : 68) : 0]
 // reversed grayscale
 // ".'`^\",:;Il!i><~+_-?][}{1)(|\\/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%%B@$"
-// 
+//
 
 // simple grayscale
 //  #define BRIGHTNESS(depth) ".,-~:;=!*#$@"[depth > 0 ? depth : 0]
-
 
 struct termios orig_termios;
 
@@ -46,11 +45,8 @@ char FOV = 2;
 short poly_count;
 
 typedef struct vec3
-{ // I have no fucking clue what axis these are
+{ // I have no fucking clue what axis these are. might aswell be called a b c
     double x, y, z;
-    // double x; // horisontal axis
-    // double y; // vertical axis
-    // double z; // depth axis
 } vec3;
 
 vec3 sub(vec3 v0, vec3 v1)
@@ -73,7 +69,7 @@ vec3 cross(vec3 v0, vec3 v1)
 
 vec3 scale(vec3 v0, double scalar)
 {
-    return (vec3){v0.x*scalar, v0.y*scalar, v0.z*scalar};
+    return (vec3){v0.x * scalar, v0.y * scalar, v0.z * scalar};
 }
 
 double dot(vec3 v0, vec3 v1)
@@ -85,8 +81,9 @@ double dot(vec3 v0, vec3 v1)
     return product;
 }
 
-double mag(vec3 v0) {
-    return sqrt(v0.x * v0.x + v0.y *v0.y + v0.z * v0.z);
+double mag(vec3 v0)
+{
+    return sqrt(v0.x * v0.x + v0.y * v0.y + v0.z * v0.z);
 }
 
 // general vec3 rotation matrix
@@ -112,7 +109,7 @@ vec3 rotate(vec3 point, double x_rad, double y_rad, double z_rad)
 
     y1 = cos_y * sin_z;
     y2 = sin_x * sin_y * sin_z + cos_x * cos_z;
-    y3 = cos_x * sin_z * sin_z - sin_x * cos_z;
+    y3 = cos_x * sin_y * sin_z - sin_x * cos_z;
 
     z1 = -sin_y;
     z2 = sin_x * cos_y;
@@ -183,63 +180,17 @@ triangle t_rotate(triangle *tri, double x_rad, double y_rad, double z_rad)
 }
 
 #include "shapes.c"
-
+char input;
 int main()
 {
     set_raw_term();
-    poly_count = 8;
+    poly_count = 12;
     triangle mesh[poly_count];
 
-{
-    mesh[0].verts[0] = (vec3){1, 1, 1};
-    mesh[0].verts[1] = (vec3){1, -1, 1};
-    mesh[0].verts[2] = (vec3){-1, -1, 1};
-    
-    mesh[1].verts[0] = (vec3){1, 1, 1};
-    mesh[1].verts[1] = (vec3){-1, -1, 1};
-    mesh[1].verts[2] = (vec3){-1, 1, 1};
-    
-    mesh[2].verts[0] = (vec3){-1, 1, 1};
-    mesh[2].verts[1] = (vec3){-1, -1, 1};
-    mesh[2].verts[2] = (vec3){-1, -1, -1};
-    
-    mesh[3].verts[0] = (vec3){-1, 1, 1};
-    mesh[3].verts[1] = (vec3){-1, -1, -1};
-    mesh[3].verts[2] = (vec3){-1, 1, -1};
-    
-    mesh[4].verts[0] = (vec3){-1, 1, -1};
-    mesh[4].verts[1] = (vec3){-1, -1, -1};
-    mesh[4].verts[2] = (vec3){1, -1, -1};
-    
-    mesh[5].verts[0] = (vec3){-1, -1, -1};
-    mesh[5].verts[1] = (vec3){1, -1, -1};
-    mesh[5].verts[2] = (vec3){1, 1, -1};
-    
-    mesh[6].verts[0] = (vec3){1, -1, -1};
-    mesh[6].verts[1] = (vec3){1, 1, -1};
-    mesh[6].verts[2] = (vec3){1, -1, 1};
-    
-    mesh[7].verts[0] = (vec3){1, 1, -1};
-    mesh[7].verts[1] = (vec3){1, -1, 1};
-    mesh[7].verts[2] = (vec3){1, 1, 1};
-    
-    // mesh[8].verts[0] = (vec3){,,};
-    // mesh[8].verts[1] = (vec3){,,};
-    // mesh[8].verts[2] = (vec3){,,};
-    
-    // mesh[9].verts[0] = (vec3){,,};
-    // mesh[9].verts[1] = (vec3){,,};
-    // mesh[9].verts[2] = (vec3){,,};
-    
-    // mesh[10].verts[0] = (vec3){,,};
-    // mesh[10].verts[1] = (vec3){,,};
-    // mesh[10].verts[2] = (vec3){,,};
-    
-    // mesh[11].verts[0] = (vec3){,,};
-    // mesh[11].verts[1] = (vec3){,,};
-    // mesh[11].verts[2] = (vec3){,,};
-    
-}
+    cube(mesh);
+
+
+
 
     double h_step = FOV / (double)H_RESOLUTION;
     double h_start = -h_step * (H_RESOLUTION / 2);
@@ -247,18 +198,18 @@ int main()
     double v_start = -v_step * (V_RESOLUTION / 2);
     char buffer[H_RESOLUTION + 1];
 
-    for (char i = 0; i < poly_count*3; i++)
+    for (char i = 0; i < poly_count * 3; i++)
     {
-        mesh[i/3].verts[i%3] = scale(mesh[i/3].verts[i%3], 5);
+        mesh[i / 3].verts[i % 3] = scale(mesh[i / 3].verts[i % 3], 5);
     }
-    
 
-    vec3 light_vec3 = (vec3) {0.5,0,-0.5};
+    vec3 light_vec3 = (vec3){0, 0, -0.5};
     vec3 rotation;
 
     // for (int iii = 0; iii < 6000; iii++)
     int iii = 0;
-    while(1)
+    double depth;
+    while (1)
     {
         clock_t start = clock();
         vec3 temp_coords;
@@ -269,13 +220,17 @@ int main()
             for (int i = 0; i < H_RESOLUTION; i++)
             {
                 hit = 0;
+                depth = 10000;
                 for (char iV = 0; iV < poly_count; iV++)
-                {                       // rotate the input on render-step to reduce
-                                        // accumalitive deformation of mesh from rotation
-                    if (!ray_collision(t_rotate(&mesh[iV], 0.01*iii, 0.03*iii, 0*iii), (vec3){0, 0, 15}, (vec3){v_start + (ii * v_step), h_start + (i * h_step), -1}, &temp_coords))
+                { // rotate the input on render-step to reduce
+                  // accumalitive deformation of mesh from rotation
+                    if (!ray_collision(t_rotate(&mesh[iV], 0 * iii, 0 * iii, 0.03 * iii), (vec3){0, 0, 20}, (vec3){v_start + (ii * v_step), h_start + (i * h_step), -1}, &temp_coords))
                         continue;
+                    if(temp_coords.z > depth)
+                        continue;
+                    depth = temp_coords.z;
                     light_level = acos(dot(light_vec3, mesh[iV].normal) / (mag(light_vec3) * mag(mesh[iV].normal)));
-                    buffer[i] = BRIGHTNESS((int)floor((light_level*57.3)/1.4));
+                    buffer[i] = BRIGHTNESS((int)floor((light_level * 57.3) / 1.4));
                     hit = 1;
                 }
                 if (!hit)
