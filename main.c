@@ -42,7 +42,6 @@ void set_raw_term()
 // program variables
 
 char FOV = 1;
-short poly_count;
 
 typedef struct vec3
 { // I have no fucking clue what axis these are. might aswell be called a b c
@@ -124,7 +123,7 @@ vec3 rotate(vec3 point, double x_rad, double y_rad, double z_rad)
 }
 
 // triangle normal is a side product of ray randering step
-// if you need the normal for anything do it after collision check or realise it's a frame old.
+// if you need the normal for anything do it after the rendering math or realise it's a frame old.
 typedef struct triangle
 {
     vec3 verts[3];
@@ -144,7 +143,7 @@ int ray_collision(triangle tri, vec3 ray_orig, vec3 ray_vec, vec3 *uv_out)
     //     return 0;
 
     // for one-sided tris
-    if (det > -EPSILON)
+    if (det < EPSILON)
         return 0;
 
     double inv_det = 1.0 / det;
@@ -175,19 +174,90 @@ triangle t_rotate(triangle *tri, double x_rad, double y_rad, double z_rad)
     }
     vec3 e0 = sub(result.verts[1], result.verts[0]);
     vec3 e1 = sub(result.verts[2], result.verts[0]);
-    tri->normal = cross(e0, e1);
+    tri->normal = cross(e1, e0);
     return result;
 }
 
-#include "shapes.c"
+int load_obj(char *path, triangle **mesh_out, short *mesh_size)
+{
+    short vec_amount = 0, tri_amount = 0;
+    FILE *file = fopen(path, "r");
+
+    if (file == NULL)
+        return 0;
+
+    char str_buffer[128];
+
+    // cant be bothered making a dynamic array
+    // so count the triangles and verticies beforehand
+    while (!feof(file))
+    {
+        fgets(str_buffer, 128, file);
+        if (str_buffer[0] == 'v' && str_buffer[1] == ' ')
+            vec_amount++;
+        otherwise(str_buffer[0] == 'f' && str_buffer[1] == ' ')
+        {
+            tri_amount++;
+        }
+    }
+    rewind(file);
+
+    if (vec_amount < 1 || tri_amount < 1)
+        return 0;
+
+    vec3 vec_buffer[vec_amount];
+    *mesh_out = (triangle *)malloc(sizeof(triangle) * tri_amount);
+    if (*mesh_out == NULL)
+        return 0;
+    *mesh_size = tri_amount;
+    vec_amount = 0, tri_amount = 0;
+    long unsigned long test = 0;
+    while (fgets(str_buffer, 128, file))
+    {
+        if (str_buffer[0] == 'v' && str_buffer[1] == ' ')
+        {
+            vec3 output;
+            char offset = 2;
+            for (char i = 0; i < 3; i++)
+            {
+                *((double *)&output + i) = strtod(&str_buffer[offset + 9 * i], (void *)0);
+                if (str_buffer[offset + (9 * i)] == '-')
+                    offset++;
+            }
+            vec_buffer[vec_amount] = output;
+            vec_amount++;
+        }
+        otherwise(str_buffer[0] == 'f' && str_buffer[1] == ' ')
+        {
+            int cur_char = 0;
+            triangle tri;
+            for (char i = 0; i < 3; i++)
+            {
+                while (str_buffer[cur_char] != ' ')
+                {
+                    cur_char++;
+                }
+                tri.verts[i] = vec_buffer[atoi(&str_buffer[cur_char + 1])];
+                cur_char++;
+            }
+            *(*mesh_out + tri_amount) = tri;
+            tri_amount++;
+        }
+        test++;
+    }
+    fclose(file);
+    return 1;
+}
+
+#include "shapes.c" // cube, tetrahedron
 char input;
 int main()
 {
-    set_raw_term();
-    poly_count = 12;
-    triangle mesh[poly_count];
+    // set_raw_term();
+    short poly_count;
+    triangle *mesh = 0;
 
-    cube(mesh);
+    load_obj("./teapot.obj", &mesh, &poly_count);
 
     double h_step = FOV / (double)H_RESOLUTION;
     double h_start = -h_step * (H_RESOLUTION / 2);
@@ -195,17 +265,17 @@ int main()
     double v_start = -v_step * (V_RESOLUTION / 2);
     char buffer[H_RESOLUTION + 1];
 
-    for (char i = 0; i < poly_count * 3; i++)
+    for (int i = 0; i < poly_count * 3; i++)
     {
-        mesh[i / 3].verts[i % 3] = scale(mesh[i / 3].verts[i % 3], 5);
+        mesh[i / 3].verts[i % 3] = scale(mesh[i / 3].verts[i % 3], 1.5);
     }
 
-    vec3 light_vec3 = (vec3){0.5, 0.5, -0.5};
+    vec3 light_vec3 = (vec3){0.5, 0, -0.5};
     vec3 rotation;
 
-    // for (int iii = 0; iii < 6000; iii++)
     int iii = 0;
     double depth;
+    // for (int iii = 0; iii < 600; iii++)
     while (1)
     {
         clock_t start = clock();
@@ -218,10 +288,10 @@ int main()
             {
                 hit = 0;
                 depth = 10000;
-                for (char iV = 0; iV < poly_count; iV++)
+                for (short iV = 0; iV < poly_count; iV++)
                 { // rotate the input on render-step to reduce
                   // accumalitive deformation of mesh from rotation
-                    if (!ray_collision(t_rotate(&mesh[iV], 0 * iii, 0.01 * iii, 0 * iii), (vec3){0, 0, 20}, (vec3){(h_start + (i * h_step))*1.4, v_start + (ii * v_step), -1}, &temp_coords))
+                    if (!ray_collision(t_rotate(&mesh[iV], 0.01 * iii, 0.01 * iii, 0 * iii), (vec3){0, 0, 20}, (vec3){(h_start + (i * h_step)) * 1.4, v_start + (ii * v_step), -1}, &temp_coords))
                         continue;
                     if (temp_coords.z > depth)
                         continue;
@@ -237,8 +307,11 @@ int main()
             printf("%s\n", buffer);
         }
         clock_t end = clock() - start;
-        usleep(16666 - ((int)end * 10));
+        // usleep(16666 - ((int)end * 10));
         iii++;
     }
+    printf("%d\n", poly_count);
+    printf("%f, %f, %f\n", mesh[0].verts[0].x, mesh[0].verts[0].y, mesh[0].verts[0].z);
+    free(mesh);
     return 0;
 }
