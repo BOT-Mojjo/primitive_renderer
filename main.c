@@ -168,10 +168,40 @@ int ray_collision(triangle tri, vec3 ray_orig, vec3 ray_vec, vec3 *uv_out)
 triangle t_rotate(triangle *tri, double x_rad, double y_rad, double z_rad)
 {
     triangle result;
+    // precalculate the cosine and sine of the radians
+    double cos_x, cos_y, cos_z, sin_x, sin_y, sin_z;
+    cos_x = cos(x_rad);
+    cos_y = cos(y_rad);
+    cos_z = cos(z_rad);
+
+    sin_x = sin(x_rad);
+    sin_y = sin(y_rad);
+    sin_z = sin(z_rad);
+
+    // matrix math
+    double x1, x2, x3, y1, y2, y3, z1, z2, z3;
+    x1 = cos_y * cos_z;
+    x2 = sin_x * sin_y * cos_z - cos_x * sin_z;
+    x3 = cos_x * sin_y * cos_z + sin_x * sin_z;
+
+    y1 = cos_y * sin_z;
+    y2 = sin_x * sin_y * sin_z + cos_x * cos_z;
+    y3 = cos_x * sin_y * sin_z - sin_x * cos_z;
+
+    z1 = -sin_y;
+    z2 = sin_x * cos_y;
+    z3 = cos_x * cos_y;
+
+    // Multplication
     for (char i = 0; i < 3; i++)
     {
-        result.verts[i] = rotate(tri->verts[i], x_rad, y_rad, z_rad);
+        vec3 point = tri->verts[i];
+
+        result.verts[i].x = x1 * point.x + x2 * point.y + x3 * point.z;
+        result.verts[i].y = y1 * point.x + y2 * point.y + y3 * point.z;
+        result.verts[i].z = z1 * point.x + z2 * point.y + z3 * point.z;
     }
+
     vec3 e0 = sub(result.verts[1], result.verts[0]);
     vec3 e1 = sub(result.verts[2], result.verts[0]);
     tri->normal = cross(e1, e0);
