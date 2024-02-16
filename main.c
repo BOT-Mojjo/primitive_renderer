@@ -231,12 +231,12 @@ int load_obj(char *path, triangle **mesh_out, short *mesh_size)
     rewind(file);
 
     if (vec_amount < 1 || tri_amount < 1)
-        return 0;
+        return 2;
 
     vec3 vec_buffer[vec_amount];
     *mesh_out = (triangle *)malloc(sizeof(triangle) * tri_amount);
     if (*mesh_out == NULL)
-        return 0;
+        return 3;
     *mesh_size = tri_amount;
     vec_amount = 0, tri_amount = 0;
     while (fgets(str_buffer, 128, file))
@@ -278,14 +278,42 @@ int load_obj(char *path, triangle **mesh_out, short *mesh_size)
 #include "shapes.c" // cube, tetrahedron
 int main()
 {
-    set_raw_term();
     short poly_count;
     triangle *mesh = 0;
-    char path[] = "./intercepter.obj";
+    puts("Please input path for .obj file:");
+    char path[128];
+    fgets(path, 128, stdin);
+    for (unsigned char i = 0; i < 128; i++)
+    {
+        if (path[i] != 10)
+            continue;
+        path[i] = 0;
+        break;
+    }
 
-    printf("Loading object %s\n", path);
-    load_obj(path, &mesh, &poly_count);
-    printf("Object %s loaded succesfully\n", path);
+    set_raw_term();
+
+    printf("\nLoading object %s\n", path);
+    char load_failure = 0;
+    switch (load_obj(path, &mesh, &poly_count))
+    {
+    case 0:
+        puts("File not Found.");
+        load_failure = 1;
+        break;
+    case 2:
+        puts("File not supported.");
+        load_failure = 1;
+        break;
+    case 3:
+        puts("Memory Allocation failed.");
+        load_failure = 1;
+        break;
+    default:
+        printf("Object %s loaded succesfully\n", path);
+    }
+    if (load_failure)
+        return 0;
 
     double h_step = FOV / (double)H_RESOLUTION;
     double h_start = -h_step * (H_RESOLUTION / 2);
@@ -338,7 +366,7 @@ int main()
             buffer[ii][H_RESOLUTION] = 0;
         }
         clock_t end = clock() - start;
-        for (int i = V_RESOLUTION-1; i >= 0 ; i--)
+        for (int i = V_RESOLUTION - 1; i >= 0; i--)
         {
             printf("%s\n", buffer[i]);
         }
