@@ -8,34 +8,20 @@
 #define ifnt(condition) if (!condition)
 #define otherwise else if
 
-#define H_RESOLUTION 180
-#define V_RESOLUTION 60
+#define H_RESOLUTION 150
+#define V_RESOLUTION 50
 // expanded grayscale
-#define BRIGHTNESS(depth) "$@B%%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrjft/\\|()1{}[]?-_+~<>i!lI;:,\"^`'."[depth >= 0 ? (depth < 69 ? depth : 68) : 0]
+// #define BRIGHTNESS(depth) "@&%%QWNM0gB$#DR8mHXKAUbGOpV4d9h6PkqwSE2]ayjxY5Zoen[ult13If}C{iF|(7J)vTLs?z/*cr!+<>;=^,_:'-.`"[depth >= 0 ? (depth < 92 ? depth : 91) : 0]
+// #define BRIGHTNESS(depth) "$@B%%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrjft/\\|()1{}[]?-_+~<>i!lI;:,\"^`'."[depth >= 0 ? (depth < 69 ? depth : 68) : 0]
+#define BRIGHTNESS(depth) "@$#*!=;:~-,."[depth >= 0 ? (depth < 12 ? depth : 11) : 0]
+// #define BRIGHTNESS(depth) "#O-."[depth >= 0 ? (depth < 4 ? depth : 3) : 0]
 // reversed grayscale
 // ".'`^\",:;Il!i><~+_-?][}{1)(|\\/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%%B@$"
-//
 
-// simple grayscale
-//  #define BRIGHTNESS(depth) ".,-~:;=!*#$@"[depth > 0 ? depth : 0]
+// meny string
+char menu[] = "+-------------------------------+\n| h=toggle menu |r=reset mesh   |\n| q=quit        |               |\n| 8=rotate up   |2= rotate down |\n| 4=rotate left |6=rptate right |\n| 7=roll left   |9=roll left    |\n| 1=inc. step s.|3=dec. step s. |\n| +=inc. mesh s.|-=dec. step s. |\n+-------------------------------+\n";
 
 struct termios orig_termios;
-
-void restore_term()
-{
-    tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios);
-}
-
-void set_raw_term()
-{ // saves local variables before changing them, and changeing them back at program termination
-    tcgetattr(STDIN_FILENO, &orig_termios);
-    atexit(restore_term);
-    // changing them to not exho text input
-    struct termios raw = orig_termios;
-    raw.c_lflag &= ~(ECHO | ICANON);
-
-    tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
-}
 
 #define EPSILON 0.000001
 
@@ -167,7 +153,7 @@ int ray_collision(triangle tri, vec3 ray_orig, vec3 ray_vec, vec3 *uv_out)
 // returns new triangle to not mutate orignal, does mutate originals normal vector
 void mesh_rotate(triangle **mesh_in, triangle *mesh_out, double x_rad, double y_rad, double z_rad, int mesh_size)
 {
-    // precalculate the cosine and sine of the radians
+    // Precalculate the cosine and sine of the radians
     double cos_x, cos_y, cos_z, sin_x, sin_y, sin_z;
     cos_x = cos(x_rad);
     cos_y = cos(y_rad);
@@ -177,7 +163,7 @@ void mesh_rotate(triangle **mesh_in, triangle *mesh_out, double x_rad, double y_
     sin_y = sin(y_rad);
     sin_z = sin(z_rad);
 
-    // matrix math
+    // Matrix math
     double x1, x2, x3, y1, y2, y3, z1, z2, z3;
     x1 = cos_y * cos_z;
     x2 = sin_x * sin_y * cos_z - cos_x * sin_z;
@@ -239,6 +225,8 @@ int load_obj(char *path, triangle **mesh_out, short *mesh_size)
         return 3;
     *mesh_size = tri_amount;
     vec_amount = 0, tri_amount = 0;
+
+    // file parser
     while (fgets(str_buffer, 128, file))
     {
         if (str_buffer[0] == 'v' && str_buffer[1] == ' ')
@@ -246,7 +234,7 @@ int load_obj(char *path, triangle **mesh_out, short *mesh_size)
             vec3 output;
             char offset = 2;
             for (char i = 0; i < 3; i++)
-            {
+            { // God bless pointermath. writing to the x, y, & z components without having to specify which one
                 *((double *)&output + i) = strtod(&str_buffer[offset + 9 * i], (void *)0);
                 if (str_buffer[offset + (9 * i)] == '-')
                     offset++;
@@ -275,11 +263,37 @@ int load_obj(char *path, triangle **mesh_out, short *mesh_size)
     return 1;
 }
 
+triangle *mesh = 0;
+
+void restore_term()
+{
+    tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios);
+}
+
+void set_raw_term()
+{ // saves local variables before changing them, and changeing them back at program termination
+    tcgetattr(STDIN_FILENO, &orig_termios);
+    atexit(restore_term);
+    // changing them to not exho text input
+    struct termios raw = orig_termios;
+    raw.c_lflag &= ~(ECHO | ICANON);
+
+    tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
+}
+
+void mesh_scale(triangle *mesh_in, triangle *mesh_out, int mesh_size, double scalar)
+{
+    for (int i = 0; i < mesh_size * 3; i++)
+    {
+        mesh_out[i / 3].verts[i % 3] = scale(mesh_in[i / 3].verts[i % 3], scalar);
+    }
+}
+
 #include "shapes.c" // cube, tetrahedron
 int main()
 {
     short poly_count;
-    triangle *mesh = 0;
+    int input;
     puts("Please input path for .obj file:");
     char path[128];
     fgets(path, 128, stdin);
@@ -321,18 +335,18 @@ int main()
     double v_start = -v_step * (V_RESOLUTION / 2);
     char buffer[V_RESOLUTION][H_RESOLUTION + 1];
 
-    for (int i = 0; i < poly_count * 3; i++)
-    {
-        mesh[i / 3].verts[i % 3] = scale(mesh[i / 3].verts[i % 3], 5);
-    }
+    char render_menu = 0;
+
     triangle render_mesh[poly_count];
+    mesh_scale(mesh, mesh, poly_count, 4);
 
     vec3 light_vec3 = (vec3){0.5, 0, -0.5};
-    vec3 rotation;
+    vec3 rotation = (vec3){0, 0, 0};
+    double step_size = 0.01;
 
     int iii = 0;
     double depth;
-    // for (int iii = 0; iii < 600; iii++)
+
     while (1)
     {
         clock_t start = clock();
@@ -340,7 +354,9 @@ int main()
         char hit;
         double light_level;
 
-        mesh_rotate(&mesh, render_mesh, 0 * iii, 0.05 * iii, 0 * iii, poly_count);
+        // rotate the mesh and apply it to a duplicate to prevente
+        // accumilative mutation of the original from building up
+        mesh_rotate(&mesh, render_mesh, rotation.x, rotation.y, rotation.z, poly_count);
 
         for (int ii = 0; ii < V_RESOLUTION; ii++)
         {
@@ -348,16 +364,15 @@ int main()
             {
                 hit = 0;
                 depth = 10000;
-                for (short iV = 0; iV < poly_count; iV++)
-                { // rotate the input on render-step to reduce
-                  // accumalitive deformation of mesh from rotation
+                for (int iV = 0; iV < poly_count; iV++)
+                {
                     if (!ray_collision(render_mesh[iV], (vec3){0, 0, 12}, (vec3){(h_start + (i * h_step)) * 1.4, v_start + (ii * v_step), -1}, &temp_coords))
                         continue;
                     if (temp_coords.z > depth)
                         continue;
                     depth = temp_coords.z;
                     light_level = acos(dot(light_vec3, render_mesh[iV].normal) / (mag(light_vec3) * mag(render_mesh[iV].normal)));
-                    buffer[ii][i] = BRIGHTNESS((int)floor((light_level * 57.3) / 1.4));
+                    buffer[ii][i] = BRIGHTNESS((int)floor((light_level * 9) / 1.4));
                     hit = 1;
                 }
                 if (!hit)
@@ -365,14 +380,95 @@ int main()
             }
             buffer[ii][H_RESOLUTION] = 0;
         }
+
+        // menu logic
+        if (render_menu)
+        {
+            for (int i = 0; i < 9; i++)
+            {
+                for (int ii = 0; ii < 33; ii++)
+                {
+                    buffer[i][ii] = menu[ii + ((8 - i) * 34)];
+                }
+            }
+        }
+
         clock_t end = clock() - start;
         for (int i = V_RESOLUTION - 1; i >= 0; i--)
         {
             printf("%s\n", buffer[i]);
         }
-        if ((int)end < 16666)
-            usleep(16666 - end);
+
         iii++;
+        input = fgetc(stdin);
+        switch (input)
+        {
+        // X axis:
+        case 56: // up/8
+            rotation.x -= step_size;
+            break;
+        case 50: // down/2
+            rotation.x += step_size;
+            break;
+        // Y axis:
+        case 52: // left/4
+            rotation.y -= step_size;
+            break;
+        case 54: // right/6
+            rotation.y += step_size;
+            break;
+        // Z axis:
+        case 55: // rotate left/7
+            rotation.z += step_size;
+            break;
+        case 57: // rotate right/9
+            rotation.z -= step_size;
+            break;
+        // Step size
+        case 49: // step down/1
+            step_size -= 0.01;
+            break;
+        case 51: // step up/3
+            step_size += 0.01;
+            break;
+        // zoom? mesh size
+        case 45: // scale up
+            mesh_scale(mesh, mesh, poly_count, 1 / 1.1);
+            break;
+        case 43: // scale down
+            mesh_scale(mesh, mesh, poly_count, 1.1);
+            break;
+        case 'r':
+            rotation = (vec3){0, 0, 0};
+            free(mesh);
+            switch (load_obj(path, &mesh, &poly_count))
+            {
+            case 0:
+                puts("File not Found.");
+                load_failure = 1;
+                break;
+            case 2:
+                puts("File not supported.");
+                load_failure = 1;
+                break;
+            case 3:
+                puts("Memory Allocation failed.");
+                load_failure = 1;
+                break;
+            default:
+                printf("Object %s loaded succesfully\n", path);
+            }
+            if (load_failure)
+                return 0;
+            mesh_scale(mesh, mesh, poly_count, 4);
+            break;
+        case 'h':
+            render_menu = !render_menu;
+        default:
+            break;
+        }
+        if (input == 'q')
+            break;
     }
     free(mesh);
     return 0;
