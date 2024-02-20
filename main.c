@@ -19,8 +19,8 @@
 // ".'`^\",:;Il!i><~+_-?][}{1)(|\\/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%%B@$"
 
 // meny string
-char menu[] = "+-------------------------------+\n| h=toggle menu |r=reset mesh   |\n| q=quit        |               |\n| 8=rotate up   |2= rotate down |\n| 4=rotate left |6=rptate right |\n| 7=roll left   |9=roll left    |\n| 1=inc. step s.|3=dec. step s. |\n| +=inc. mesh s.|-=dec. step s. |\n+-------------------------------+\n";
-
+char menu[] = "+-------------------------------+\n| h=toggle menu |r=reset mesh   |\n| q=quit        |a=animate      |\n| 8=rotate up   |2=rotate down  |\n| 4=rotate left |6=rotate right |\n| 7=roll left   |9=roll left    |\n| 1=inc. step s.|3=dec. step s. |\n| +=inc. mesh s.|-=dec. step s. |\n+-------------------------------+\n";
+char str_buffer[128];
 struct termios orig_termios;
 
 #define EPSILON 0.000001
@@ -193,14 +193,27 @@ void mesh_rotate(triangle **mesh_in, triangle *mesh_out, double x_rad, double y_
     }
 }
 
+// will break if the string isn't terminated
+// with a NL or 0
+void str_clean(char *str, int limit)
+{
+    for (int i = 0; i < limit; i++)
+    {
+        if (str[i] != 10 && str[i] != 0)
+        {
+            continue;
+        }
+        str[i] = 0;
+        break;
+    }
+}
+
 int load_obj(char *path, triangle **mesh_out, short *mesh_size)
 {
     short vec_amount = 0, tri_amount = 0;
     FILE *file = fopen(path, "r");
     if (file == NULL)
         return 0;
-
-    char str_buffer[128];
 
     // cant be bothered making a dynamic array
     // so count the triangles and verticies beforehand
@@ -293,18 +306,12 @@ void mesh_scale(triangle *mesh_in, triangle *mesh_out, int mesh_size, double sca
 int main()
 {
     short poly_count;
-    int input;
+    int input = 0;
+    int anim_timer = 0;
     puts("Please input path for .obj file:");
     char path[128];
     fgets(path, 128, stdin);
-    for (unsigned char i = 0; i < 128; i++)
-    {
-        if (path[i] != 10)
-            continue;
-        path[i] = 0;
-        break;
-    }
-
+    str_clean(path, 128);
     set_raw_term();
 
     printf("\nLoading object %s\n", path);
@@ -342,6 +349,7 @@ int main()
 
     vec3 light_vec3 = (vec3){0.5, 0, -0.5};
     vec3 rotation = (vec3){0, 0, 0};
+    vec3 anim_rotation = (vec3){0, 0, 0};
     double step_size = 0.01;
 
     int iii = 0;
@@ -394,13 +402,23 @@ int main()
         }
 
         clock_t end = clock() - start;
+        if ((int)end < 16666)
+            usleep(16666 - end);
         for (int i = V_RESOLUTION - 1; i >= 0; i--)
         {
             printf("%s\n", buffer[i]);
         }
 
         iii++;
-        input = fgetc(stdin);
+        if (anim_timer > 0)
+        {
+            anim_timer--;
+            rotation.x += anim_rotation.x;
+            rotation.y += anim_rotation.y;
+            rotation.z += anim_rotation.z;
+        }
+        else
+            input = fgetc(stdin);
         switch (input)
         {
         // X axis:
@@ -427,6 +445,7 @@ int main()
         // Step size
         case 49: // step down/1
             step_size -= 0.01;
+            step_size = step_size < 0 ? 0 : step_size;
             break;
         case 51: // step up/3
             step_size += 0.01;
@@ -464,6 +483,25 @@ int main()
             break;
         case 'h':
             render_menu = !render_menu;
+            break;
+        case 'a':
+            restore_term();
+            printf("%s\n", "Rotation is measured in radians.");
+            printf("%s", "X rotation per frame: ");
+            str_clean(fgets(str_buffer, 128, stdin), 128);
+            anim_rotation.x = strtod(str_buffer, (void *)0);
+            printf("%s", "Y rotation per frame: ");
+            str_clean(fgets(str_buffer, 128, stdin), 128);
+            anim_rotation.y = strtod(str_buffer, (void *)0);
+            printf("%s", "Z rotation per frame: ");
+            str_clean(fgets(str_buffer, 128, stdin), 128);
+            anim_rotation.z = strtod(str_buffer, (void *)0);
+            printf("%s", "Amount of frames: ");
+            str_clean(fgets(str_buffer, 128, stdin), 128);
+            anim_timer = atoi(str_buffer);
+            set_raw_term();
+            input = 0;
+            break;
         default:
             break;
         }
