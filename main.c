@@ -1,9 +1,9 @@
-#include <stdio.h> // printf
+#include <stdio.h>   // printf, fopen, fclose, fgets, feof, fgetc
 #include <stdlib.h>
 #include <math.h>    // sin, cos, tan, acos
 #include <unistd.h>  // usleep
 #include <time.h>    // clock
-#include <termios.h> // terminal fuckery
+#include <termios.h> // terminal configuration, raw terminal
 
 #define ifnt(condition) if (!condition)
 #define otherwise else if
@@ -19,8 +19,6 @@
 // ".'`^\",:;Il!i><~+_-?][}{1)(|\\/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%%B@$"
 
 // meny string
-char menu[] = "+-------------------------------+\n| h=toggle menu |r=reset mesh   |\n| q=quit        |a=animate      |\n| 8=rotate up   |2=rotate down  |\n| 4=rotate left |6=rotate right |\n| 7=roll left   |9=roll left    |\n| 1=inc. step s.|3=dec. step s. |\n| +=inc. mesh s.|-=dec. step s. |\n+-------------------------------+\n";
-char str_buffer[128];
 struct termios orig_termios;
 
 #define EPSILON 0.000001
@@ -28,6 +26,8 @@ struct termios orig_termios;
 // program variables
 
 char FOV = 1;
+char menu[] = "+-------------------------------+\n| h=toggle menu |r=reset mesh   |\n| q=quit        |a=animate      |\n| 8=rotate up   |2=rotate down  |\n| 4=rotate left |6=rotate right |\n| 7=roll left   |9=roll left    |\n| 1=inc. step s.|3=dec. step s. |\n| +=inc. mesh s.|-=dec. step s. |\n+-------------------------------+\n";
+char str_buffer[128];
 
 typedef struct vec3
 { // I have no fucking clue what axis these are. might aswell be called a b c
