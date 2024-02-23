@@ -302,7 +302,6 @@ void mesh_scale(triangle *mesh_in, triangle *mesh_out, int mesh_size, double sca
     }
 }
 
-#include "shapes.c" // cube, tetrahedron
 int main()
 {
     short poly_count;
