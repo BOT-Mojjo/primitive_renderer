@@ -1,4 +1,4 @@
-#include <stdio.h>   // printf, fopen, fclose, fgets, feof, fgetc
+#include <stdio.h> // printf, fopen, fclose, fgets, feof, fgetc
 #include <stdlib.h>
 #include <math.h>    // sin, cos, tan, acos
 #include <unistd.h>  // usleep
@@ -7,13 +7,15 @@
 
 #define ifnt(condition) if (!condition)
 #define otherwise else if
+#define otherwisent(condition) otherwise(!condition)
 
 #define H_RESOLUTION 150
 #define V_RESOLUTION 50
+
 // expanded grayscale
 // #define BRIGHTNESS(depth) "@&%%QWNM0gB$#DR8mHXKAUbGOpV4d9h6PkqwSE2]ayjxY5Zoen[ult13If}C{iF|(7J)vTLs?z/*cr!+<>;=^,_:'-.`"[depth >= 0 ? (depth < 92 ? depth : 91) : 0]
 // #define BRIGHTNESS(depth) "$@B%%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrjft/\\|()1{}[]?-_+~<>i!lI;:,\"^`'."[depth >= 0 ? (depth < 69 ? depth : 68) : 0]
-#define BRIGHTNESS(depth) "@$#*!=;:~-,."[depth >= 0 ? (depth < 12 ? depth : 11) : 0]
+#define BRIGHTNESS(depth) (depth >= 0 ? (depth < 12 ? depth : 11) : 0)["@$#*!=;:~-,."]
 // #define BRIGHTNESS(depth) "#O-."[depth >= 0 ? (depth < 4 ? depth : 3) : 0]
 // reversed grayscale
 // ".'`^\",:;Il!i><~+_-?][}{1)(|\\/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%%B@$"
@@ -26,13 +28,16 @@ struct termios orig_termios;
 // program variables
 
 char FOV = 1;
-char menu[] = "+-------------------------------+\n| h=toggle menu |r=reset mesh   |\n| q=quit        |a=animate      |\n| 8=rotate up   |2=rotate down  |\n| 4=rotate left |6=rotate right |\n| 7=roll left   |9=roll left    |\n| 1=inc. step s.|3=dec. step s. |\n| +=inc. mesh s.|-=dec. step s. |\n+-------------------------------+\n";
+char menu[] = "+-------------------------------+\n| h=toggle menu |r=reset mesh   |\n| s=switch ctrl.|a=animate      |\n| 8=rotate up   |2=rotate down  |\n| 4=rotate left |6=rotate right |\n| 7=roll left   |9=roll right   |\n| 1=inc. step s.|3=dec. step s. |\n| +=inc. mesh s.|-=dec. step s. |\n+-q=quit------------------------+\n+-------------------------------+\n| h=toggle menu |r=reset mesh   |\n| s=switch ctrl.|a=animate      |\n| 8=move mesh +y|2=move mesh -y |\n| 4=move mesh -x|6=move mesh +x |\n| 7=move mesh -z|9=move mesh +z |\n| 1=inc. step s.|3=dec. step s. |\n| +=inc. mesh s.|-=dec. step s. |\n+-q=quit------------------------+\n";
 char str_buffer[128];
 
 typedef struct vec3
-{ // I have no fucking clue what axis these are. might aswell be called a b c
+{
     double x, y, z;
 } vec3;
+
+#define VEC3_ZERO \
+    (vec3) { 0, 0, 0 }
 
 vec3 sub(vec3 v0, vec3 v1)
 {
@@ -40,6 +45,15 @@ vec3 sub(vec3 v0, vec3 v1)
     product.x = v0.x - v1.x;
     product.y = v0.y - v1.y;
     product.z = v0.z - v1.z;
+    return product;
+}
+
+vec3 add(vec3 v0, vec3 v1)
+{
+    vec3 product;
+    product.x = v0.x + v1.x;
+    product.y = v0.y + v1.y;
+    product.z = v0.z + v1.z;
     return product;
 }
 
@@ -69,6 +83,12 @@ double dot(vec3 v0, vec3 v1)
 double mag(vec3 v0)
 {
     return sqrt(v0.x * v0.x + v0.y * v0.y + v0.z * v0.z);
+}
+
+vec3 norm_vec3(vec3 v0)
+{
+    double magn = mag(v0);
+    return (vec3){v0.x / magn, v0.y / magn, v0.z / magn};
 }
 
 // general vec3 rotation matrix
@@ -108,25 +128,103 @@ vec3 rotate(vec3 point, double x_rad, double y_rad, double z_rad)
     return result;
 }
 
-// triangle normal is a side product of ray randering step
+typedef struct quat
+{
+    double w, x, y, z;
+} quat;
+
+// can be used to check if unit quats are still unit sized, saving a sqrt call
+#define PRE_QUAT_MAG(q) (q.w * q.w + q.x * q.x + q.y * q.y + q.z * q.z)
+#define QUAT_PRECISION 0.000001
+#define QUAT_ZERO \
+    (quat) { 1, 0, 0, 0 }
+#define FORMATTED_QUATERNION(str, q) sprintf(str, "x: %f, y: %f, z: %f, w:%f", q.x, q.y, q.z, q.w)
+
+quat quat_norm(quat q)
+{
+    double mag = sqrt(q.w * q.w + q.x * q.x + q.y * q.y + q.z * q.z);
+    q.w /= mag;
+    q.x /= mag;
+    q.y /= mag;
+    q.z /= mag;
+    return q;
+}
+
+// quat multiplication is non-commutative, x*y != y*x
+quat quat_mult(quat q0, quat q1)
+{
+    quat product;
+    product.w = (q0.w * q1.w - q0.x * q1.x - q0.y * q1.y - q0.z * q1.z);
+    product.x = (q0.w * q1.x + q0.x * q1.w + q0.y * q1.z - q0.z * q1.y);
+    product.y = (q0.w * q1.y - q0.x * q1.z + q0.y * q1.w + q0.z * q1.x);
+    product.z = (q0.w * q1.z + q0.x * q1.y - q0.y * q1.x + q0.z * q1.w);
+    return product;
+}
+
+// Squish the rotation data into a quat, scalar is angle and vector is axis
+quat local_rotation(quat q)
+{
+    quat product;
+    product.w = cos(q.w / 2);
+    double a_comp = sin(q.w / 2);
+    product.x = q.x * a_comp;
+    product.y = q.y * a_comp;
+    product.z = q.z * a_comp;
+    return product;
+}
+
+// tri normal is a side product of ray randering step
 // if you need the normal for anything do it after the rendering math or realise it's a frame old.
-typedef struct triangle
+typedef struct tri
 {
     vec3 verts[3];
     vec3 normal;
-} triangle;
+} tri;
+
+void quat_rotate(tri *mesh_in, tri *mesh_out, int mesh_size, quat *q, quat rotation)
+{
+    double pre_mag = PRE_QUAT_MAG((*q));
+    if (pre_mag > QUAT_PRECISION)
+        *q = quat_norm(*q);
+
+    quat q0 = quat_mult(local_rotation(rotation), *q);
+    *q = q0;
+    double x1, x2, x3, y1, y2, y3, z1, z2, z3;
+    x1 = 1 - 2 * q0.y * q0.y - 2 * q0.z * q0.z;
+    x2 = 2 * q0.x * q0.y - 2 * q0.w * q0.z;
+    x3 = 2 * q0.x * q0.z + 2 * q0.w * q0.y;
+
+    y1 = 2 * q0.x * q0.y + 2 * q0.w * q0.z;
+    y2 = 1 - 2 * q0.x * q0.x - 2 * q0.z * q0.z;
+    y3 = 2 * q0.y * q0.z + 2 * q0.w * q0.x;
+
+    z1 = 2 * q0.x * q0.z - 2 * q0.w * q0.y;
+    z2 = 2 * q0.y * q0.z - 2 * q0.w * q0.x;
+    z3 = 1 - 2 * q0.x * q0.x - 2 * q0.y * q0.y;
+
+    // Multiplication
+    for (int ii = 0; ii < mesh_size; ii++)
+    {
+        for (char i = 0; i < 3; i++)
+        {
+            mesh_out[ii].verts[i].x = x1 * (mesh_in + ii)->verts[i].x + x2 * (mesh_in + ii)->verts[i].y + x3 * (mesh_in + ii)->verts[i].z;
+            mesh_out[ii].verts[i].y = y1 * (mesh_in + ii)->verts[i].x + y2 * (mesh_in + ii)->verts[i].y + y3 * (mesh_in + ii)->verts[i].z;
+            mesh_out[ii].verts[i].z = z1 * (mesh_in + ii)->verts[i].x + z2 * (mesh_in + ii)->verts[i].y + z3 * (mesh_in + ii)->verts[i].z;
+        }
+
+        vec3 e0 = sub(mesh_out[ii].verts[1], mesh_out[ii].verts[0]);
+        vec3 e1 = sub(mesh_out[ii].verts[2], mesh_out[ii].verts[0]);
+        mesh_out[ii].normal = cross(e1, e0);
+    }
+}
 
 // implementation of Tomas Moller & Ben Trumbore algorithm
-int ray_collision(triangle tri, vec3 ray_orig, vec3 ray_vec, vec3 *uv_out)
+int ray_collision(tri tri, vec3 ray_orig, vec3 ray_vec, vec3 *uv_out)
 {
     vec3 e1 = sub(tri.verts[1], tri.verts[0]);
     vec3 e2 = sub(tri.verts[2], tri.verts[0]);
     vec3 ce2 = cross(ray_vec, e2);
     double det = dot(e1, ce2);
-
-    // for two-sided tris
-    // if (det > -EPSILON && det < EPSILON)
-    //     return 0;
 
     // for one-sided tris
     if (det < EPSILON)
@@ -150,51 +248,29 @@ int ray_collision(triangle tri, vec3 ray_orig, vec3 ray_vec, vec3 *uv_out)
     return 1;
 }
 
-// returns new triangle to not mutate orignal, does mutate originals normal vector
-void mesh_rotate(triangle **mesh_in, triangle *mesh_out, double x_rad, double y_rad, double z_rad, int mesh_size)
+void mesh_scale(tri *mesh_in, tri *mesh_out, int mesh_size, double scalar)
 {
-    // Precalculate the cosine and sine of the radians
-    double cos_x, cos_y, cos_z, sin_x, sin_y, sin_z;
-    cos_x = cos(x_rad);
-    cos_y = cos(y_rad);
-    cos_z = cos(z_rad);
-
-    sin_x = sin(x_rad);
-    sin_y = sin(y_rad);
-    sin_z = sin(z_rad);
-
-    // Matrix math
-    double x1, x2, x3, y1, y2, y3, z1, z2, z3;
-    x1 = cos_y * cos_z;
-    x2 = sin_x * sin_y * cos_z - cos_x * sin_z;
-    x3 = cos_x * sin_y * cos_z + sin_x * sin_z;
-
-    y1 = cos_y * sin_z;
-    y2 = sin_x * sin_y * sin_z + cos_x * cos_z;
-    y3 = cos_x * sin_y * sin_z - sin_x * cos_z;
-
-    z1 = -sin_y;
-    z2 = sin_x * cos_y;
-    z3 = cos_x * cos_y;
-
-    // Multplication
-    for (int ii = 0; ii < mesh_size; ii++)
+    for (int i = 0; i < mesh_size * 3; i++)
     {
-        for (char i = 0; i < 3; i++)
-        {
-            mesh_out[ii].verts[i].x = x1 * (*mesh_in + ii)->verts[i].x + x2 * (*mesh_in + ii)->verts[i].y + x3 * (*mesh_in + ii)->verts[i].z;
-            mesh_out[ii].verts[i].y = y1 * (*mesh_in + ii)->verts[i].x + y2 * (*mesh_in + ii)->verts[i].y + y3 * (*mesh_in + ii)->verts[i].z;
-            mesh_out[ii].verts[i].z = z1 * (*mesh_in + ii)->verts[i].x + z2 * (*mesh_in + ii)->verts[i].y + z3 * (*mesh_in + ii)->verts[i].z;
-        }
-
-        vec3 e0 = sub(mesh_out[ii].verts[1], mesh_out[ii].verts[0]);
-        vec3 e1 = sub(mesh_out[ii].verts[2], mesh_out[ii].verts[0]);
-        mesh_out[ii].normal = cross(e1, e0);
+        mesh_out[i / 3].verts[i % 3] = scale(mesh_in[i / 3].verts[i % 3], scalar);
     }
 }
 
-// will break if the string isn't terminated
-// with a NL or 0
+void mesh_translate(tri *mesh_in, tri *mesh_out, int mesh_size, vec3 movement)
+{
+    for (int i = 0; i < mesh_size * 3; i++)
+    {
+        mesh_out[i / 3].verts[i % 3] = add(mesh_out[i / 3].verts[i % 3], movement);
+    }
+}
+
+void mesh_translate_to(tri *mesh_in, tri *mesh_out, int mesh_size, vec3 mesh_orig, vec3 destination)
+{
+    destination = sub(destination, mesh_orig);
+    mesh_translate(mesh_in, mesh_out, mesh_size, destination);
+}
+
+// expects cstring
 void str_clean(char *str, int limit)
 {
     for (int i = 0; i < limit; i++)
@@ -208,7 +284,7 @@ void str_clean(char *str, int limit)
     }
 }
 
-int load_obj(char *path, triangle **mesh_out, short *mesh_size)
+int load_obj(char *path, tri **mesh_out, short *mesh_size)
 {
     short vec_amount = 0, tri_amount = 0;
     FILE *file = fopen(path, "r");
@@ -216,7 +292,7 @@ int load_obj(char *path, triangle **mesh_out, short *mesh_size)
         return 0;
 
     // cant be bothered making a dynamic array
-    // so count the triangles and verticies beforehand
+    // so count the tris and verticies beforehand
     while (!feof(file))
     {
         fgets(str_buffer, 128, file);
@@ -233,7 +309,7 @@ int load_obj(char *path, triangle **mesh_out, short *mesh_size)
         return 2;
 
     vec3 vec_buffer[vec_amount];
-    *mesh_out = (triangle *)malloc(sizeof(triangle) * tri_amount);
+    *mesh_out = (tri *)malloc(sizeof(tri) * tri_amount);
     if (*mesh_out == NULL)
         return 3;
     *mesh_size = tri_amount;
@@ -258,7 +334,7 @@ int load_obj(char *path, triangle **mesh_out, short *mesh_size)
         otherwise(str_buffer[0] == 'f' && str_buffer[1] == ' ')
         {
             int cur_char = 0;
-            triangle tri;
+            tri tri;
             for (char i = 0; i < 3; i++)
             {
                 while (str_buffer[cur_char] != ' ')
@@ -276,7 +352,7 @@ int load_obj(char *path, triangle **mesh_out, short *mesh_size)
     return 1;
 }
 
-triangle *mesh = 0;
+tri *mesh = 0;
 
 void restore_term()
 {
@@ -294,19 +370,12 @@ void set_raw_term()
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
 }
 
-void mesh_scale(triangle *mesh_in, triangle *mesh_out, int mesh_size, double scalar)
-{
-    for (int i = 0; i < mesh_size * 3; i++)
-    {
-        mesh_out[i / 3].verts[i % 3] = scale(mesh_in[i / 3].verts[i % 3], scalar);
-    }
-}
-
 int main()
 {
     short poly_count;
     int input = 0;
     int anim_timer = 0;
+    char menu_select = 0;
     puts("Please input path for .obj file:");
     char path[128];
     fgets(path, 128, stdin);
@@ -343,12 +412,16 @@ int main()
 
     char render_menu = 0;
 
-    triangle render_mesh[poly_count];
-    mesh_scale(mesh, mesh, poly_count, 4);
+    tri render_mesh[poly_count];
+    mesh_scale(mesh, mesh, poly_count, 1);
+
+    vec3 mesh_origo = VEC3_ZERO;
 
     vec3 light_vec3 = (vec3){0.5, 0, -0.5};
-    vec3 rotation = (vec3){0, 0, 0};
-    vec3 anim_rotation = (vec3){0, 0, 0};
+    quat mesh_rotation = (quat){1, 0, 0, 0};
+    vec3 rotation = VEC3_ZERO;
+    vec3 mesh_movement = VEC3_ZERO;
+    vec3 anim_rotation = VEC3_ZERO;
     double step_size = 0.01;
 
     int iii = 0;
@@ -361,16 +434,27 @@ int main()
         char hit;
         double light_level;
 
-        // rotate the mesh and apply it to a duplicate to prevente
-        // accumilative mutation of the original from building up
-        mesh_rotate(&mesh, render_mesh, rotation.x, rotation.y, rotation.z, poly_count);
+        // // The compiler should inline it here, instead of having it copied 15 times in the control switch
+        // mesh_translate(mesh, mesh, poly_count, mesh_movement);
+        // mesh_origo = add(mesh_origo, mesh_movement);
+        // mesh_movement = VEC3_ZERO;
 
+        // // rotate the mesh and apply it to a duplicate to prevente
+        // // accumilative mutation of the original from building up
+        // mesh_rotate_local(mesh, render_mesh, mesh_origo, rotation, poly_count);
+
+
+        char quat_out_buffer[128];
+        FORMATTED_QUATERNION(quat_out_buffer, mesh_rotation);
+        printf("%s\n", quat_out_buffer);
+
+        quat_rotate(mesh, render_mesh, poly_count, &mesh_rotation, (quat){0.2, 0, 1, 0});
         for (int ii = 0; ii < V_RESOLUTION; ii++)
         {
             for (int i = 0; i < H_RESOLUTION; i++)
             {
                 hit = 0;
-                depth = 10000;
+                depth = HUGE_VAL;
                 for (int iV = 0; iV < poly_count; iV++)
                 {
                     if (!ray_collision(render_mesh[iV], (vec3){0, 0, 12}, (vec3){(h_start + (i * h_step)) * 1.4, v_start + (ii * v_step), -1}, &temp_coords))
@@ -395,10 +479,11 @@ int main()
             {
                 for (int ii = 0; ii < 33; ii++)
                 {
-                    buffer[i][ii] = menu[ii + ((8 - i) * 34)];
+                    buffer[i][ii] = menu[ii + ((8 - i) * 34) + (menu_select * 306)];
                 }
             }
         }
+        sprintf(buffer[0] + 33, "x: %f, y: %f, z: %f, w:%f", mesh_rotation.x, mesh_rotation.y, mesh_rotation.z, mesh_rotation.w);
 
         clock_t end = clock() - start;
         if ((int)end < 16666)
@@ -420,26 +505,42 @@ int main()
             input = fgetc(stdin);
         switch (input)
         {
-        // X axis:
-        case 56: // up/8
-            rotation.x -= step_size;
+        case 56: // 8 rotate -x/translate +y
+            if (menu_select)
+                mesh_movement.y += step_size * 10;
+            else
+                rotation.x -= step_size;
             break;
-        case 50: // down/2
-            rotation.x += step_size;
+        case 50: // 2 rotate +x/translate -y
+            if (menu_select)
+                mesh_movement.y -= step_size * 10;
+            else
+                rotation.x += step_size;
             break;
-        // Y axis:
-        case 52: // left/4
-            rotation.y -= step_size;
+        case 52: // 4 rotate -y/translate -x
+            if (menu_select)
+                mesh_movement.x -= step_size * 10;
+            else
+                rotation.y -= step_size;
             break;
-        case 54: // right/6
-            rotation.y += step_size;
+        case 54: // 6 rotate +y/translate +x
+            if (menu_select)
+                mesh_movement.x += step_size * 10;
+            else
+                rotation.y += step_size;
             break;
         // Z axis:
-        case 55: // rotate left/7
-            rotation.z += step_size;
+        case 55: // 7 rotate +z/translate -z
+            if (menu_select)
+                mesh_movement.z -= step_size * 10;
+            else
+                rotation.z += step_size;
             break;
-        case 57: // rotate right/9
-            rotation.z -= step_size;
+        case 57: // 9 rotate -z/translate +z
+            if (menu_select)
+                mesh_movement.z += step_size * 10;
+            else
+                rotation.z -= step_size;
             break;
         // Step size
         case 49: // step down/1
@@ -457,7 +558,7 @@ int main()
             mesh_scale(mesh, mesh, poly_count, 1.1);
             break;
         case 'r':
-            rotation = (vec3){0, 0, 0};
+            rotation = VEC3_ZERO;
             free(mesh);
             switch (load_obj(path, &mesh, &poly_count))
             {
@@ -500,6 +601,9 @@ int main()
             anim_timer = atoi(str_buffer);
             set_raw_term();
             input = 0;
+            break;
+        case 's':
+            menu_select = !menu_select;
             break;
         default:
             break;
