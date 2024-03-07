@@ -1,13 +1,13 @@
 # todo
 
-- [ ] rotation of meshes cleanup
-  - [ ] fix gimble lock
-    - [ ] Quaternions
-- [ ] transformations of meshes
+- [x] rotation of meshes cleanup
+  - [x] fix gimble lock
+    - [x] Quaternions
+- [x] transformations of meshes
   - [X] Translation
     - [x] Submeny for translation
   - [x] Scaling
-  - [ ] Rotation on arbitrary vector and axis
+  - [x] Rotation on arbitrary vector and axis
 - [ ] Performance benchmark
   - [ ] Clockcycles of different functions
   - [ ] Does macro-ifying small functions affect performance

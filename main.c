@@ -227,7 +227,7 @@ int ray_collision(tri tri, vec3 ray_orig, vec3 ray_vec, vec3 *uv_out)
     double det = dot(e1, ce2);
 
     // for one-sided tris
-    if (det < EPSILON && det > EPSILON)
+    if (det < EPSILON)
         return 0;
 
     double inv_det = 1.0 / det;
@@ -434,19 +434,7 @@ int main()
         vec3 temp_coords;
         char hit;
         double light_level;
-
-        // // The compiler should inline it here, instead of having it copied 15 times in the control switch
-        // mesh_translate(mesh, mesh, poly_count, mesh_movement);
-        // mesh_origo = add(mesh_origo, mesh_movement);
-        // mesh_movement = VEC3_ZERO;
-
-        // // rotate the mesh and apply it to a duplicate to prevente
-        // // accumilative mutation of the original from building up
-        // mesh_rotate_local(mesh, render_mesh, mesh_origo, rotation, poly_count);
-
-        char quat_out_buffer[128];
-        FORMATTED_QUATERNION(quat_out_buffer, mesh_rotation);
-
+        
         quat_rotate(mesh, render_mesh, poly_count, &mesh_rotation, frame_rotation);
         frame_rotation = QUAT_ZERO;
         for (int ii = 0; ii < V_RESOLUTION; ii++)
