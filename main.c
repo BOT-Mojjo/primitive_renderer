@@ -138,7 +138,7 @@ typedef struct quat
 #define QUAT_PRECISION 0.000001
 #define QUAT_ZERO \
     (quat) { 1, 0, 0, 0 }
-#define FORMATTED_QUATERNION(str, q) sprintf(str, "x: %f, y: %f, z: %f, w:%f", q.x, q.y, q.z, q.w)
+#define FORMATTED_QUATERNION(str, q) sprintf(str, "x: %+f, y: %+f, z: %+f, w:%+f", q.x, q.y, q.z, q.w)
 
 quat quat_norm(quat q)
 {
@@ -165,16 +165,16 @@ quat quat_mult(quat q0, quat q1)
 quat local_rotation(quat q)
 {
     quat product;
-    product.w = cos(q.w / 2);
-    double a_comp = sin(q.w / 2);
+    product.w = cos(q.w / 2.0);
+    double a_comp = sin(q.w / 2.0);
     product.x = q.x * a_comp;
     product.y = q.y * a_comp;
     product.z = q.z * a_comp;
     return product;
 }
 
-// tri normal is a side product of ray randering step
-// if you need the normal for anything do it after the rendering math or realise it's a frame old.
+// tri normal is a side product of rotation
+// if you need the normal for anything do it after the rotation math or realise it's a frame old.
 typedef struct tri
 {
     vec3 verts[3];
@@ -196,10 +196,10 @@ void quat_rotate(tri *mesh_in, tri *mesh_out, int mesh_size, quat *q, quat rotat
 
     y1 = 2 * q0.x * q0.y + 2 * q0.w * q0.z;
     y2 = 1 - 2 * q0.x * q0.x - 2 * q0.z * q0.z;
-    y3 = 2 * q0.y * q0.z + 2 * q0.w * q0.x;
-
-    z1 = 2 * q0.x * q0.z - 2 * q0.w * q0.y;
-    z2 = 2 * q0.y * q0.z - 2 * q0.w * q0.x;
+    y3 = 2 * q0.y * q0.z - 2 * q0.w * q0.x; // this one was supposed to be subtraction too
+                                            // thanks to https://danceswithcode.net/engineeringnotes/quaternions/quaternions.html
+    z1 = 2 * q0.x * q0.z - 2 * q0.w * q0.y; // for the correct rotation matrix.
+    z2 = 2 * q0.y * q0.z + 2 * q0.w * q0.x; // this one was addition not subtraction.
     z3 = 1 - 2 * q0.x * q0.x - 2 * q0.y * q0.y;
 
     // Multiplication
@@ -227,7 +227,7 @@ int ray_collision(tri tri, vec3 ray_orig, vec3 ray_vec, vec3 *uv_out)
     double det = dot(e1, ce2);
 
     // for one-sided tris
-    if (det < EPSILON)
+    if (det < EPSILON && det > EPSILON)
         return 0;
 
     double inv_det = 1.0 / det;
@@ -418,8 +418,9 @@ int main()
     vec3 mesh_origo = VEC3_ZERO;
 
     vec3 light_vec3 = (vec3){0.5, 0, -0.5};
-    quat mesh_rotation = (quat){1, 0, 0, 0};
+    quat mesh_rotation = QUAT_ZERO;
     vec3 rotation = VEC3_ZERO;
+    quat frame_rotation = QUAT_ZERO;
     vec3 mesh_movement = VEC3_ZERO;
     vec3 anim_rotation = VEC3_ZERO;
     double step_size = 0.01;
@@ -443,12 +444,11 @@ int main()
         // // accumilative mutation of the original from building up
         // mesh_rotate_local(mesh, render_mesh, mesh_origo, rotation, poly_count);
 
-
         char quat_out_buffer[128];
         FORMATTED_QUATERNION(quat_out_buffer, mesh_rotation);
-        printf("%s\n", quat_out_buffer);
 
-        quat_rotate(mesh, render_mesh, poly_count, &mesh_rotation, (quat){0.2, 0, 1, 0});
+        quat_rotate(mesh, render_mesh, poly_count, &mesh_rotation, frame_rotation);
+        frame_rotation = QUAT_ZERO;
         for (int ii = 0; ii < V_RESOLUTION; ii++)
         {
             for (int i = 0; i < H_RESOLUTION; i++)
@@ -483,8 +483,12 @@ int main()
                 }
             }
         }
-        sprintf(buffer[0] + 33, "x: %f, y: %f, z: %f, w:%f", mesh_rotation.x, mesh_rotation.y, mesh_rotation.z, mesh_rotation.w);
-
+        sprintf(buffer[0] + 33, "x: %f, y: %f, z: %f, w: %f", mesh_rotation.x, mesh_rotation.y, mesh_rotation.z, mesh_rotation.w);
+        for (int i = 0; i < 3; i++)
+        {
+            sprintf(buffer[i+1] + 33, "x: %f, y: %f, z: %f", render_mesh[0].verts[i].x, render_mesh[0].verts[i].y, render_mesh[0].verts[i].z);
+        }
+        
         clock_t end = clock() - start;
         if ((int)end < 16666)
             usleep(16666 - end);
@@ -509,38 +513,38 @@ int main()
             if (menu_select)
                 mesh_movement.y += step_size * 10;
             else
-                rotation.x -= step_size;
+                frame_rotation = (quat){-step_size, 1, 0, 0};
             break;
         case 50: // 2 rotate +x/translate -y
             if (menu_select)
                 mesh_movement.y -= step_size * 10;
             else
-                rotation.x += step_size;
+                frame_rotation = (quat){step_size, 1, 0, 0};
             break;
         case 52: // 4 rotate -y/translate -x
             if (menu_select)
                 mesh_movement.x -= step_size * 10;
             else
-                rotation.y -= step_size;
+                frame_rotation = (quat){-step_size, 0, 1, 0};
             break;
         case 54: // 6 rotate +y/translate +x
             if (menu_select)
                 mesh_movement.x += step_size * 10;
             else
-                rotation.y += step_size;
+                frame_rotation = (quat){step_size, 0, 1, 0};
             break;
         // Z axis:
         case 55: // 7 rotate +z/translate -z
             if (menu_select)
                 mesh_movement.z -= step_size * 10;
             else
-                rotation.z += step_size;
+                frame_rotation = (quat){step_size, 0, 0, 1};
             break;
         case 57: // 9 rotate -z/translate +z
             if (menu_select)
                 mesh_movement.z += step_size * 10;
             else
-                rotation.z -= step_size;
+                frame_rotation = (quat){-step_size, 0, 0, 1};
             break;
         // Step size
         case 49: // step down/1
@@ -559,6 +563,7 @@ int main()
             break;
         case 'r':
             rotation = VEC3_ZERO;
+            mesh_rotation = QUAT_ZERO;
             free(mesh);
             switch (load_obj(path, &mesh, &poly_count))
             {
