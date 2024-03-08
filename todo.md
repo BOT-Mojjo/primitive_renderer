@@ -12,7 +12,7 @@
 - [x] Re-installment of translation logic
 - [x] Debug Menu
 - [ ] Performance benchmark
-  - [ ] Clockcycles of different functions
+  - [x] Clockcycles of different functions
   - [ ] Does macro-ifying small functions affect performance
 - [ ] multiple meshes. mesh logic
   - [ ] mesh heirarcy. What renders on top

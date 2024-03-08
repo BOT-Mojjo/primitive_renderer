@@ -370,6 +370,10 @@ void set_raw_term()
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
 }
 
+clock_t ave_arr[122];
+char ave_arr_filled = 0;
+char ave_arr_offset = 0;
+
 int main()
 {
     short poly_count;
@@ -377,6 +381,9 @@ int main()
     int anim_timer = 0;
     char menu_select = 0;
     char debug = 0;
+
+    ave_arr[120] = INT64_MAX;
+    ave_arr[121] = 0;
 
     puts("Please input path for .obj file:");
     char path[128];
@@ -430,6 +437,8 @@ int main()
     int iii = 0;
     double depth;
 
+    clock_t end = 0;
+    clock_t print_t = 0;
     while (1)
     {
         clock_t start = clock();
@@ -438,14 +447,19 @@ int main()
         double light_level;
 
         // Apply Rotation
+        clock_t rotation_t = clock();
         mesh_rotate(mesh, render_mesh, poly_count, &mesh_rotation, frame_rotation);
+        rotation_t = clock() - rotation_t;
         // if I want to do it right scale should be here though I see little reason not to do it in the origin mesh
         // apply translation
+        clock_t translation_t = clock();
         mesh_anchor = add(mesh_anchor, mesh_movement);
         mesh_movement = VEC3_ZERO;
         mesh_translate(render_mesh, render_mesh, poly_count, mesh_anchor);
+        translation_t = clock() - translation_t;
 
         frame_rotation = QUAT_ZERO;
+        clock_t render_t = clock();
         for (int ii = 0; ii < V_RESOLUTION; ii++)
         {
             for (int i = 0; i < H_RESOLUTION; i++)
@@ -468,7 +482,7 @@ int main()
             }
             buffer[ii][H_RESOLUTION] = 0;
         }
-
+        render_t = clock() - render_t;
         // menu logic
         if (render_menu)
         {
@@ -487,18 +501,61 @@ int main()
                 *(buffer[0] + 32) = '+';
 
                 FORMATTED_QUATERNION(buffer[0] + 34, "Mesh Quaternion Rotation: ", mesh_rotation);
+                *(buffer[0] + 113) = ' ';
                 sprintf(buffer[1] + 34, "Mesh Anchor: x: %f, y: %f, z: %f", mesh_anchor.x, mesh_anchor.y, mesh_anchor.z);
+                *(buffer[1] + 84) = ' ';
+
+                if (end < ave_arr[120])
+                    ave_arr[120] = end;
+                if (end > ave_arr[121])
+                    ave_arr[121] = end;
+                int average_cycles;
+                ave_arr[ave_arr_offset] = end;
+                ave_arr_offset++;
+
+                if (ave_arr_offset == 120)
+                {
+                    ave_arr_offset = 0;
+                    ave_arr_filled = 1;
+                }
+                if (ave_arr_filled)
+                {
+                    long unsigned long total_cycles = 0;
+                    for (char i = 0; i < 120; i++)
+                    {
+                        total_cycles += ave_arr[i];
+                    }
+                    average_cycles = total_cycles / 120;
+                }
+                else
+                {
+                    long unsigned long total_cycles = 0;
+                    for (char i = 0; i < ave_arr_offset; i++)
+                    {
+                        total_cycles += ave_arr[i];
+                    }
+                    average_cycles = total_cycles / ave_arr_offset;
+                }
+
+                sprintf(buffer[7] + H_RESOLUTION - 26, "Render step length: %06lu", render_t);
+                sprintf(buffer[6] + H_RESOLUTION - 26, "Rotation s. length: %06lu", rotation_t);
+                sprintf(buffer[5] + H_RESOLUTION - 26, "Translation length: %06lu", translation_t);
+                sprintf(buffer[4] + H_RESOLUTION - 26, "Print frame length: %06lu", print_t);
+                sprintf(buffer[3] + H_RESOLUTION - 27, "Short. frame length: %06lu", ave_arr[120]);
+                sprintf(buffer[2] + H_RESOLUTION - 26, "Long. frame length: %06lu", ave_arr[121]);
+                sprintf(buffer[1] + H_RESOLUTION - 26, "Avrg. frame length: %06i", average_cycles);
+                sprintf(buffer[0] + H_RESOLUTION - 25, "Cycles last frame: %06lu", end);
             }
         }
-
-        clock_t end = clock() - start;
-        if ((int)end < 16666)
-            usleep(16666 - end);
+        clock_t render_time = clock() - start;
+        if ((int)render_time < 16666)
+            usleep(16666 - render_time);
+        print_t = clock();
         for (int i = V_RESOLUTION - 1; i >= 0; i--)
         {
             printf("%s\n", buffer[i]);
         }
-
+        print_t = clock() - print_t;
         iii++;
         if (anim_timer > 0)
         {
@@ -613,6 +670,7 @@ int main()
         }
         if (input == 'q')
             break;
+        end = clock() - start;
     }
     free(mesh);
     return 0;
