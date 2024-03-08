@@ -138,6 +138,8 @@ typedef struct quat
 #define QUAT_PRECISION 0.000001
 #define QUAT_ZERO \
     (quat) { 1, 0, 0, 0 }
+#define QUAT_TRUE_ZERO \
+    (quat) { 0, 0, 0, 0 }
 #define FORMATTED_QUATERNION(buffer, str, q) sprintf(buffer, "%sx: % f, y: % f, z: % f, w:% f", str, q.x, q.y, q.z, q.w)
 
 quat quat_norm(quat q)
@@ -429,7 +431,7 @@ int main()
     vec3 light_vec3 = (vec3){0.5, 0, -0.5};
     quat mesh_rotation = QUAT_ZERO;
     vec3 rotation = VEC3_ZERO;
-    quat frame_rotation = QUAT_ZERO;
+    quat frame_rotation = QUAT_TRUE_ZERO;
     vec3 mesh_movement = VEC3_ZERO;
     vec3 anim_rotation = VEC3_ZERO;
     double step_size = 0.01;
@@ -458,7 +460,7 @@ int main()
         mesh_translate(render_mesh, render_mesh, poly_count, mesh_anchor);
         translation_t = clock() - translation_t;
 
-        frame_rotation = QUAT_ZERO;
+        frame_rotation = QUAT_TRUE_ZERO;
         clock_t render_t = clock();
         for (int ii = 0; ii < V_RESOLUTION; ii++)
         {

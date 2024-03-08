@@ -11,9 +11,10 @@
 - [x] Cleanup of control switch
 - [x] Re-installment of translation logic
 - [x] Debug Menu
-- [ ] Performance benchmark
+- [x] Performance benchmark
   - [x] Clockcycles of different functions
-  - [ ] Does macro-ifying small functions affect performance
+  - [x] Does macro-ifying small functions affect performance?
+    - no it does not.
 - [ ] multiple meshes. mesh logic
   - [ ] mesh heirarcy. What renders on top
 - [ ] ECS - Entity Component System
