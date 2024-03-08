@@ -33,7 +33,7 @@ char str_buffer[128];
 
 typedef struct vec3
 {
-    double x, y, z;
+    float x, y, z;
 } vec3;
 
 #define VEC3_ZERO \
@@ -66,48 +66,48 @@ vec3 cross(vec3 v0, vec3 v1)
     return product;
 }
 
-vec3 scale(vec3 v0, double scalar)
+vec3 scale(vec3 v0, float scalar)
 {
     return (vec3){v0.x * scalar, v0.y * scalar, v0.z * scalar};
 }
 
-double dot(vec3 v0, vec3 v1)
+float dot(vec3 v0, vec3 v1)
 {
-    double product = 0;
+    float product = 0;
     product += v0.x * v1.x;
     product += v0.y * v1.y;
     product += v0.z * v1.z;
     return product;
 }
 
-double mag(vec3 v0)
+float mag(vec3 v0)
 {
-    return sqrt(v0.x * v0.x + v0.y * v0.y + v0.z * v0.z);
+    return sqrtf(v0.x * v0.x + v0.y * v0.y + v0.z * v0.z);
 }
 
 vec3 norm_vec3(vec3 v0)
 {
-    double magn = mag(v0);
+    float magn = mag(v0);
     return (vec3){v0.x / magn, v0.y / magn, v0.z / magn};
 }
 
 // general vec3 rotation matrix
 // Tait-Bryan angles
-vec3 rotate(vec3 point, double x_rad, double y_rad, double z_rad)
+vec3 rotate(vec3 point, float x_rad, float y_rad, float z_rad)
 {
 
     // precalculate the cosine and sine of the radians
-    double cos_x, cos_y, cos_z, sin_x, sin_y, sin_z;
-    cos_x = cos(x_rad);
-    cos_y = cos(y_rad);
-    cos_z = cos(z_rad);
+    float cos_x, cos_y, cos_z, sin_x, sin_y, sin_z;
+    cos_x = cosf(x_rad);
+    cos_y = cosf(y_rad);
+    cos_z = cosf(z_rad);
 
-    sin_x = sin(x_rad);
-    sin_y = sin(y_rad);
-    sin_z = sin(z_rad);
+    sin_x = sinf(x_rad);
+    sin_y = sinf(y_rad);
+    sin_z = sinf(z_rad);
 
     // matrix math
-    double x1, x2, x3, y1, y2, y3, z1, z2, z3;
+    float x1, x2, x3, y1, y2, y3, z1, z2, z3;
     x1 = cos_y * cos_z;
     x2 = sin_x * sin_y * cos_z - cos_x * sin_z;
     x3 = cos_x * sin_y * cos_z + sin_x * sin_z;
@@ -130,7 +130,7 @@ vec3 rotate(vec3 point, double x_rad, double y_rad, double z_rad)
 
 typedef struct quat
 {
-    double w, x, y, z;
+    float w, x, y, z;
 } quat;
 
 // can be used to check if unit quats are still unit sized, saving a sqrt call
@@ -144,7 +144,7 @@ typedef struct quat
 
 quat quat_norm(quat q)
 {
-    double mag = sqrt(q.w * q.w + q.x * q.x + q.y * q.y + q.z * q.z);
+    float mag = sqrtf(q.w * q.w + q.x * q.x + q.y * q.y + q.z * q.z);
     q.w /= mag;
     q.x /= mag;
     q.y /= mag;
@@ -167,8 +167,8 @@ quat quat_mult(quat q0, quat q1)
 quat local_rotation(quat q)
 {
     quat product;
-    product.w = cos(q.w / 2.0);
-    double a_comp = sin(q.w / 2.0);
+    product.w = cosf(q.w / 2.0);
+    float a_comp = sinf(q.w / 2.0);
     product.x = q.x * a_comp;
     product.y = q.y * a_comp;
     product.z = q.z * a_comp;
@@ -177,7 +177,7 @@ quat local_rotation(quat q)
 
 void quat_rotate(quat *q, quat rotation)
 {
-    double pre_mag = PRE_QUAT_MAG((*q));
+    float pre_mag = PRE_QUAT_MAG((*q));
     if (pre_mag > QUAT_PRECISION)
         *q = quat_norm(*q);
 
@@ -197,7 +197,7 @@ void mesh_rotate(tri *mesh_in, tri *mesh_out, int mesh_size, quat *q, quat rotat
 {
     quat_rotate(q, rotation);
     quat q0 = *q;
-    double x1, x2, x3, y1, y2, y3, z1, z2, z3;
+    float x1, x2, x3, y1, y2, y3, z1, z2, z3;
     x1 = 1 - 2 * q0.y * q0.y - 2 * q0.z * q0.z;
     x2 = 2 * q0.x * q0.y - 2 * q0.w * q0.z;
     x3 = 2 * q0.x * q0.z + 2 * q0.w * q0.y;
@@ -232,31 +232,31 @@ int ray_collision(tri tri, vec3 ray_orig, vec3 ray_vec, vec3 *uv_out)
     vec3 e1 = sub(tri.verts[1], tri.verts[0]);
     vec3 e2 = sub(tri.verts[2], tri.verts[0]);
     vec3 ce2 = cross(ray_vec, e2);
-    double det = dot(e1, ce2);
+    float det = dot(e1, ce2);
 
     // for one-sided tris
     if (det < EPSILON)
         return 0;
 
-    double inv_det = 1.0 / det;
+    float inv_det = 1.0 / det;
     vec3 s = sub(ray_orig, tri.verts[0]);
-    double u = inv_det * dot(s, ce2);
+    float u = inv_det * dot(s, ce2);
     if (u < 0 || u > 1)
         return 0;
 
     vec3 sce1 = cross(s, e1);
-    double v = inv_det * dot(ray_vec, sce1);
+    float v = inv_det * dot(ray_vec, sce1);
     if (v < 0 || u + v > 1)
         return 0;
 
-    double t = inv_det * dot(e2, sce1);
+    float t = inv_det * dot(e2, sce1);
     uv_out->x = u;
     uv_out->y = v;
     uv_out->z = t;
     return 1;
 }
 
-void mesh_scale(tri *mesh_in, tri *mesh_out, int mesh_size, double scalar)
+void mesh_scale(tri *mesh_in, tri *mesh_out, int mesh_size, float scalar)
 {
     for (int i = 0; i < mesh_size * 3; i++)
     {
@@ -326,7 +326,7 @@ int load_obj(char *path, tri **mesh_out, short *mesh_size)
             char offset = 2;
             for (char i = 0; i < 3; i++)
             { // God bless pointermath. writing to the x, y, & z components without having to specify which one
-                *((double *)&output + i) = strtod(&str_buffer[offset + 9 * i], (void *)0);
+                *((float *)&output + i) = strtod(&str_buffer[offset + 9 * i], (void *)0);
                 if (str_buffer[offset + (9 * i)] == '-')
                     offset++;
             }
@@ -415,10 +415,10 @@ int main()
     if (load_failure)
         return 0;
 
-    double h_step = FOV / (double)H_RESOLUTION;
-    double h_start = -h_step * (H_RESOLUTION / 2);
-    double v_step = FOV / (double)V_RESOLUTION;
-    double v_start = -v_step * (V_RESOLUTION / 2);
+    float h_step = FOV / (float)H_RESOLUTION;
+    float h_start = -h_step * (H_RESOLUTION / 2);
+    float v_step = FOV / (float)V_RESOLUTION;
+    float v_start = -v_step * (V_RESOLUTION / 2);
     char buffer[V_RESOLUTION][H_RESOLUTION + 1];
 
     char render_menu = 0;
@@ -434,10 +434,10 @@ int main()
     quat frame_rotation = QUAT_TRUE_ZERO;
     vec3 mesh_movement = VEC3_ZERO;
     vec3 anim_rotation = VEC3_ZERO;
-    double step_size = 0.01;
+    float step_size = 0.01;
 
     int iii = 0;
-    double depth;
+    float depth;
 
     clock_t end = 0;
     clock_t print_t = 0;
@@ -446,7 +446,7 @@ int main()
         clock_t start = clock();
         vec3 temp_coords;
         char hit;
-        double light_level;
+        float light_level;
 
         // Apply Rotation
         clock_t rotation_t = clock();
@@ -475,7 +475,7 @@ int main()
                     if (temp_coords.z > depth)
                         continue;
                     depth = temp_coords.z;
-                    light_level = acos(dot(light_vec3, render_mesh[iV].normal) / (mag(light_vec3) * mag(render_mesh[iV].normal)));
+                    light_level = acosf(dot(light_vec3, render_mesh[iV].normal) / (mag(light_vec3) * mag(render_mesh[iV].normal)));
                     buffer[ii][i] = BRIGHTNESS((int)floor((light_level * 9) / 1.4));
                     hit = 1;
                 }
