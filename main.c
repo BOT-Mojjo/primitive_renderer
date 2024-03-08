@@ -28,7 +28,7 @@ struct termios orig_termios;
 // program variables
 
 char FOV = 1;
-char menu[] = "+-------------------------------+\n| h=toggle menu |r=reset mesh   |\n| s=switch ctrl.|a=animate      |\n| 8=rotate up   |2=rotate down  |\n| 4=rotate left |6=rotate right |\n| 7=roll left   |9=roll right   |\n| 1=inc. step s.|3=dec. step s. |\n| +=inc. mesh s.|-=dec. step s. |\n+-q=quit------------------------+\n+-------------------------------+\n| h=toggle menu |r=reset mesh   |\n| s=switch ctrl.|a=animate      |\n| 8=move mesh +y|2=move mesh -y |\n| 4=move mesh -x|6=move mesh +x |\n| 7=move mesh -z|9=move mesh +z |\n| 1=inc. step s.|3=dec. step s. |\n| +=inc. mesh s.|-=dec. step s. |\n+-q=quit------------------------+\n";
+char menu[] = "+-------------------------------+\n| h=toggle menu |r=reset mesh   |\n| s=switch ctrl.|a=animate      |\n| 8=rotate up   |2=rotate down  |\n| 4=rotate left |6=rotate right |\n| 7=roll left   |9=roll right   |\n| 1=inc. step s.|3=dec. step s. |\n| +=inc. mesh s.|-=dec. step s. |\n+-q=quit-d=debug----------------+\n+-------------------------------+\n| h=toggle menu |r=reset mesh   |\n| s=switch ctrl.|a=animate      |\n| 8=move mesh +y|2=move mesh -y |\n| 4=move mesh -x|6=move mesh +x |\n| 7=move mesh -z|9=move mesh +z |\n| 1=inc. step s.|3=dec. step s. |\n| +=inc. mesh s.|-=dec. step s. |\n+-q=quit-d=debug----------------+\n";
 char str_buffer[128];
 
 typedef struct vec3
@@ -138,7 +138,7 @@ typedef struct quat
 #define QUAT_PRECISION 0.000001
 #define QUAT_ZERO \
     (quat) { 1, 0, 0, 0 }
-#define FORMATTED_QUATERNION(str, q) sprintf(str, "x: %+f, y: %+f, z: %+f, w:%+f", q.x, q.y, q.z, q.w)
+#define FORMATTED_QUATERNION(buffer, str, q) sprintf(buffer, "%sx: % f, y: % f, z: % f, w:% f", str, q.x, q.y, q.z, q.w)
 
 quat quat_norm(quat q)
 {
@@ -173,6 +173,16 @@ quat local_rotation(quat q)
     return product;
 }
 
+void quat_rotate(quat *q, quat rotation)
+{
+    double pre_mag = PRE_QUAT_MAG((*q));
+    if (pre_mag > QUAT_PRECISION)
+        *q = quat_norm(*q);
+
+    quat q0 = quat_mult(local_rotation(rotation), *q);
+    *q = q0;
+}
+
 // tri normal is a side product of rotation
 // if you need the normal for anything do it after the rotation math or realise it's a frame old.
 typedef struct tri
@@ -181,14 +191,10 @@ typedef struct tri
     vec3 normal;
 } tri;
 
-void quat_rotate(tri *mesh_in, tri *mesh_out, int mesh_size, quat *q, quat rotation)
+void mesh_rotate(tri *mesh_in, tri *mesh_out, int mesh_size, quat *q, quat rotation)
 {
-    double pre_mag = PRE_QUAT_MAG((*q));
-    if (pre_mag > QUAT_PRECISION)
-        *q = quat_norm(*q);
-
-    quat q0 = quat_mult(local_rotation(rotation), *q);
-    *q = q0;
+    quat_rotate(q, rotation);
+    quat q0 = *q;
     double x1, x2, x3, y1, y2, y3, z1, z2, z3;
     x1 = 1 - 2 * q0.y * q0.y - 2 * q0.z * q0.z;
     x2 = 2 * q0.x * q0.y - 2 * q0.w * q0.z;
@@ -262,12 +268,6 @@ void mesh_translate(tri *mesh_in, tri *mesh_out, int mesh_size, vec3 movement)
     {
         mesh_out[i / 3].verts[i % 3] = add(mesh_out[i / 3].verts[i % 3], movement);
     }
-}
-
-void mesh_translate_to(tri *mesh_in, tri *mesh_out, int mesh_size, vec3 mesh_orig, vec3 destination)
-{
-    destination = sub(destination, mesh_orig);
-    mesh_translate(mesh_in, mesh_out, mesh_size, destination);
 }
 
 // expects cstring
@@ -376,6 +376,8 @@ int main()
     int input = 0;
     int anim_timer = 0;
     char menu_select = 0;
+    char debug = 0;
+
     puts("Please input path for .obj file:");
     char path[128];
     fgets(path, 128, stdin);
@@ -415,7 +417,7 @@ int main()
     tri render_mesh[poly_count];
     mesh_scale(mesh, mesh, poly_count, 1);
 
-    vec3 mesh_origo = VEC3_ZERO;
+    vec3 mesh_anchor = VEC3_ZERO;
 
     vec3 light_vec3 = (vec3){0.5, 0, -0.5};
     quat mesh_rotation = QUAT_ZERO;
@@ -434,8 +436,15 @@ int main()
         vec3 temp_coords;
         char hit;
         double light_level;
-        
-        quat_rotate(mesh, render_mesh, poly_count, &mesh_rotation, frame_rotation);
+
+        // Apply Rotation
+        mesh_rotate(mesh, render_mesh, poly_count, &mesh_rotation, frame_rotation);
+        // if I want to do it right scale should be here though I see little reason not to do it in the origin mesh
+        // apply translation
+        mesh_anchor = add(mesh_anchor, mesh_movement);
+        mesh_movement = VEC3_ZERO;
+        mesh_translate(render_mesh, render_mesh, poly_count, mesh_anchor);
+
         frame_rotation = QUAT_ZERO;
         for (int ii = 0; ii < V_RESOLUTION; ii++)
         {
@@ -470,13 +479,18 @@ int main()
                     buffer[i][ii] = menu[ii + ((8 - i) * 34) + (menu_select * 306)];
                 }
             }
+            if (debug)
+            {
+                sprintf(buffer[0] + 17, "step_s.=%#6.4f", step_size);
+
+                *(buffer[0] + 31) = '-'; // fixes corner of menu
+                *(buffer[0] + 32) = '+';
+
+                FORMATTED_QUATERNION(buffer[0] + 34, "Mesh Quaternion Rotation: ", mesh_rotation);
+                sprintf(buffer[1] + 34, "Mesh Anchor: x: %f, y: %f, z: %f", mesh_anchor.x, mesh_anchor.y, mesh_anchor.z);
+            }
         }
-        sprintf(buffer[0] + 33, "x: %f, y: %f, z: %f, w: %f", mesh_rotation.x, mesh_rotation.y, mesh_rotation.z, mesh_rotation.w);
-        for (int i = 0; i < 3; i++)
-        {
-            sprintf(buffer[i+1] + 33, "x: %f, y: %f, z: %f", render_mesh[0].verts[i].x, render_mesh[0].verts[i].y, render_mesh[0].verts[i].z);
-        }
-        
+
         clock_t end = clock() - start;
         if ((int)end < 16666)
             usleep(16666 - end);
@@ -495,52 +509,40 @@ int main()
         }
         else
             input = fgetc(stdin);
+        char step_mod = 1;
         switch (input)
         {
+        case 50: // 2 rotate +x/translate -y
+            step_mod = -1;
         case 56: // 8 rotate -x/translate +y
             if (menu_select)
-                mesh_movement.y += step_size * 10;
+                mesh_movement.y += step_size * step_mod * 10;
             else
-                frame_rotation = (quat){-step_size, 1, 0, 0};
-            break;
-        case 50: // 2 rotate +x/translate -y
-            if (menu_select)
-                mesh_movement.y -= step_size * 10;
-            else
-                frame_rotation = (quat){step_size, 1, 0, 0};
+                frame_rotation = (quat){-step_size * step_mod, 1, 0, 0};
             break;
         case 52: // 4 rotate -y/translate -x
-            if (menu_select)
-                mesh_movement.x -= step_size * 10;
-            else
-                frame_rotation = (quat){-step_size, 0, 1, 0};
-            break;
+            step_mod = -1;
         case 54: // 6 rotate +y/translate +x
             if (menu_select)
-                mesh_movement.x += step_size * 10;
+                mesh_movement.x += step_size * step_mod * 10;
             else
-                frame_rotation = (quat){step_size, 0, 1, 0};
+                frame_rotation = (quat){step_size * step_mod, 0, 1, 0};
             break;
         // Z axis:
         case 55: // 7 rotate +z/translate -z
-            if (menu_select)
-                mesh_movement.z -= step_size * 10;
-            else
-                frame_rotation = (quat){step_size, 0, 0, 1};
-            break;
+            step_mod = -1;
         case 57: // 9 rotate -z/translate +z
             if (menu_select)
-                mesh_movement.z += step_size * 10;
+                mesh_movement.z += step_size * step_mod * 10;
             else
-                frame_rotation = (quat){-step_size, 0, 0, 1};
+                frame_rotation = (quat){-step_size * step_mod, 0, 0, 1};
             break;
         // Step size
         case 49: // step down/1
-            step_size -= 0.01;
-            step_size = step_size < 0 ? 0 : step_size;
-            break;
+            step_mod = -1;
         case 51: // step up/3
-            step_size += 0.01;
+            step_size += 0.01 * step_mod;
+            step_size = step_size < 0 ? 0 : step_size;
             break;
         // zoom? mesh size
         case 45: // scale up
@@ -549,6 +551,7 @@ int main()
         case 43: // scale down
             mesh_scale(mesh, mesh, poly_count, 1.1);
             break;
+
         case 'r':
             rotation = VEC3_ZERO;
             mesh_rotation = QUAT_ZERO;
@@ -572,11 +575,16 @@ int main()
             }
             if (load_failure)
                 return 0;
-            mesh_scale(mesh, mesh, poly_count, 4);
             break;
+
         case 'h':
             render_menu = !render_menu;
             break;
+
+        case 'd':
+            debug = !debug;
+            break;
+
         case 'a':
             restore_term();
             printf("%s\n", "Rotation is measured in radians.");
@@ -595,9 +603,11 @@ int main()
             set_raw_term();
             input = 0;
             break;
+
         case 's':
             menu_select = !menu_select;
             break;
+
         default:
             break;
         }

@@ -8,6 +8,9 @@
     - [x] Submeny for translation
   - [x] Scaling
   - [x] Rotation on arbitrary vector and axis
+- [x] Cleanup of control switch
+- [x] Re-installment of translation logic
+- [x] Debug Menu
 - [ ] Performance benchmark
   - [ ] Clockcycles of different functions
   - [ ] Does macro-ifying small functions affect performance
