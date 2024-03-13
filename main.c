@@ -12,17 +12,10 @@
 #define H_RESOLUTION 150
 #define V_RESOLUTION 50
 
-// expanded grayscale
-// #define BRIGHTNESS(depth) "@&%%QWNM0gB$#DR8mHXKAUbGOpV4d9h6PkqwSE2]ayjxY5Zoen[ult13If}C{iF|(7J)vTLs?z/*cr!+<>;=^,_:'-.`"[depth >= 0 ? (depth < 92 ? depth : 91) : 0]
-// #define BRIGHTNESS(depth) "$@B%%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrjft/\\|()1{}[]?-_+~<>i!lI;:,\"^`'."[depth >= 0 ? (depth < 69 ? depth : 68) : 0]
-#define BRIGHTNESS(depth) (depth >= 0 ? (depth < 12 ? depth : 11) : 0)["@$#*!=;:~-,."]
-// #define BRIGHTNESS(depth) "#O-."[depth >= 0 ? (depth < 4 ? depth : 3) : 0]
-// reversed grayscale
-// ".'`^\",:;Il!i><~+_-?][}{1)(|\\/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%%B@$"
-
 char grayscale[256] = {0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 3, 3, 4, 5, 5, 6, 7, 8, 9, 9, 11, 12, 13, 14, 15, 16, 18, 19, 21, 22, 24, 25, 27, 28, 30, 31, 32, 34, 35, 37, 38, 39, 41, 42, 43, 45, 46, 47, 49, 50, 51, 53, 54, 55, 57, 58, 59, 60, 62, 63, 64, 65, 67, 68, 69, 70, 71, 73, 74, 75, 76, 77, 79, 80, 81, 82, 83, 84, 86, 87, 88, 89, 90, 91, 93, 94, 95, 96, 97, 98, 99, 100, 101, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 133, 134, 135, 136, 137, 138, 139, 140, 141, 142, 143, 144, 145, 146, 147, 148, 149, 150, 151, 152, 153, 154, 155, 156, 157, 158, 159, 160, 161, 162, 163, 164, 165, 165, 166, 167, 168, 169, 170, 171, 172, 173, 174, 175, 176, 177, 178, 179, 180, 181, 182, 183, 184, 185, 186, 186, 187, 188, 189, 190, 191, 192, 193, 194, 195, 196, 197, 198, 199, 199, 200, 201, 202, 203, 204, 205, 206, 207, 208, 209, 209, 210, 211, 212, 213, 214, 215, 216, 217, 218, 218, 219, 220, 221, 222, 223, 224, 225, 226, 226, 227, 228, 229, 230, 231, 232, 233, 233, 234, 235, 236, 237, 238, 239, 240, 240, 241, 242, 243, 244, 245, 246, 246, 247, 248, 249, 250, 251, 252, 252, 253, 254, 255};
 #define ESC_SQ_LENGTH 20
 #define ROW_ARR_LENGTH (H_RESOLUTION * ESC_SQ_LENGTH + 1)
+
 void print_grayscale()
 {
     for (int i = 0; i < 256; i++)
@@ -332,7 +325,7 @@ int load_obj(char *path, tri **mesh_out, short *mesh_size)
         return 2;
 
     vec3 vec_buffer[vec_amount];
-    *mesh_out = (tri *)malloc(sizeof(tri) * tri_amount);
+    *mesh_out = malloc(sizeof(tri) * tri_amount);
     if (*mesh_out == NULL)
         return 3;
     *mesh_size = tri_amount;
@@ -383,10 +376,16 @@ void restore_term()
     printf("\x1b[?25h");
 }
 
+void cleanup()
+{
+    free(mesh);
+    restore_term();
+};
+
 void set_raw_term()
 { // saves local variables before changing them, and changeing them back at program termination
     tcgetattr(STDIN_FILENO, &orig_termios);
-    atexit(restore_term);
+    atexit(cleanup);
     // changing them to not exho text input
     struct termios raw = orig_termios;
     raw.c_lflag &= ~(ECHO | ICANON);
@@ -396,18 +395,12 @@ void set_raw_term()
 }
 
 clock_t ave_arr[122];
-char ave_arr_filled = 0;
-char ave_arr_offset = 0;
+char ave_arr_filled = 0, ave_arr_offset = 0;
 int main()
 {
-
-    // printf("\x1b[48;2;000;000;000m ");
-    char test = '\x1b';
     short poly_count;
-    int input = 0;
-    int anim_timer = 0;
-    char menu_select = 0;
-    char debug = 0;
+    int input = 0, anim_timer = 0;
+    char menu_select = 0, debug = 0;
     ave_arr[120] = INT64_MAX;
     ave_arr[121] = 0;
     puts("Please input path for .obj file:");
@@ -448,12 +441,12 @@ int main()
     tri render_mesh[poly_count];
     mesh_scale(mesh, mesh, poly_count, 1);
 
-    vec3 mesh_anchor = VEC3_ZERO;
+    quat mesh_rotation = QUAT_ZERO;
+    quat frame_rotation = QUAT_TRUE_ZERO;
 
     vec3 light_vec3 = (vec3){-0.5, 0, 0.5};
-    quat mesh_rotation = QUAT_ZERO;
+    vec3 mesh_anchor = VEC3_ZERO;
     vec3 rotation = VEC3_ZERO;
-    quat frame_rotation = QUAT_TRUE_ZERO;
     vec3 mesh_movement = VEC3_ZERO;
     vec3 anim_rotation = VEC3_ZERO;
     float step_size = 0.01;
@@ -468,9 +461,6 @@ int main()
     {
         fflush(stdin);
         clock_t start = clock();
-        vec3 temp_coords;
-        char hit;
-        float light_level;
 
         // Apply Rotation
         clock_t rotation_t = clock();
@@ -487,14 +477,18 @@ int main()
         frame_rotation = QUAT_TRUE_ZERO;
         clock_t render_t = clock();
 
-        int rgb;
+        int rgb, hit, last_rgb = 256, buffer_offset = 0;
+        float light_level;
+
+        //used to store u, v, & t componets of the ray check
+        vec3 temp_coords;
 
         for (int ii = 0; ii < V_RESOLUTION; ii++)
         {
             for (int i = 0; i < H_RESOLUTION; i++)
             {
+                depth = HUGE_VALF;
                 hit = 0;
-                depth = HUGE_VAL;
                 for (int iV = 0; iV < poly_count; iV++)
                 {
                     if (!ray_collision(render_mesh[iV], (vec3){0, 0, 12}, (vec3){(h_start + (i * h_step)) * 1.4, -v_start - (ii * v_step), -1}, &temp_coords))
@@ -503,88 +497,26 @@ int main()
                         continue;
                     depth = temp_coords.z;
                     light_level = acosf(dot(light_vec3, render_mesh[iV].normal) / (mag(light_vec3) * mag(render_mesh[iV].normal)));
-                    // buffer[ii][i] = BRIGHTNESS((int)floor((light_level * 9) / 1.4));
-                    // buffer[ii][i] = (int)round(light_level * 81.5286);
-                    rgb = (int)round(light_level * 81.5286);
-                    sprintf(buffer + (ROW_ARR_LENGTH * ii + i * ESC_SQ_LENGTH), "\x1b[48;2;%03i;%03i;%03im ", rgb, rgb, rgb);
+                    rgb = (int)floor(light_level * 81.5286);
                     hit = 1;
                 }
                 if (!hit)
-                    sprintf(buffer + (ROW_ARR_LENGTH * ii + i * ESC_SQ_LENGTH), "\x1b[48;2;000;000;000m ");
+                    rgb = 0;
+
+                // check if we need a new ESC squence, or if the last one is still good
+                if (last_rgb == rgb)
+                    buffer_offset += sprintf(buffer + buffer_offset, " ");
+                else
+                    buffer_offset += sprintf(buffer + buffer_offset, "\x1b[48;2;%i;%i;%im ", rgb, rgb, rgb);
+                last_rgb = rgb;
             }
-            buffer[(ROW_ARR_LENGTH * ii) - 1] = 10;
+            buffer[buffer_offset] = 10;
+            buffer_offset++;
         }
-        buffer[ROW_ARR_LENGTH * V_RESOLUTION - 1] = 0;
+        buffer[buffer_offset] = 0;
         buffer[0] = '\x1b';
         render_t = clock() - render_t;
 
-        // menu logic
-        // TODO: figure out new implementation of help & debug menu
-
-        // if (0)
-        // {
-        //     for (int i = 0; i < 9; i++)
-        //     {
-        //         for (int ii = 0; ii < 33; ii++)
-        //         {
-        //             buffer[i][ii] = menu[ii + ((8 - i) * 34) + (menu_select * 306)];
-        //         }
-        //     }
-        //     if (debug) // you knwo, this debug thing really is annoying, if only someone cleaned it up
-        //     {
-        //         sprintf(buffer[0] + 17, "step_s.=%#6.4f", step_size);
-
-        //         *(buffer[0] + 31) = '-'; // fixes corner of menu
-        //         *(buffer[0] + 32) = '+';
-
-        //         FORMATTED_QUATERNION(buffer[0] + 34, "Mesh Quaternion Rotation: ", mesh_rotation);
-        //         *(buffer[0] + 113) = ' ';
-        //         sprintf(buffer[1] + 34, "Mesh Anchor: x: %f, y: %f, z: %f", mesh_anchor.x, mesh_anchor.y, mesh_anchor.z);
-        //         *(buffer[1] + 84) = ' ';
-
-        //         if (end < ave_arr[120])
-        //             ave_arr[120] = end;
-        //         if (end > ave_arr[121])
-        //             ave_arr[121] = end;
-        //         int average_cycles;
-        //         ave_arr[ave_arr_offset] = end;
-        //         ave_arr_offset++;
-
-        //         if (ave_arr_offset == 120)
-        //         {
-        //             ave_arr_offset = 0;
-        //             ave_arr_filled = 1;
-        //         }
-        //         if (ave_arr_filled)
-        //         {
-        //             long unsigned long total_cycles = 0;
-        //             for (char i = 0; i < 120; i++)
-        //             {
-        //                 total_cycles += ave_arr[i];
-        //             }
-        //             average_cycles = total_cycles / 120;
-        //         }
-        //         else
-        //         {
-        //             long unsigned long total_cycles = 0;
-        //             for (char i = 0; i < ave_arr_offset; i++)
-        //             {
-        //                 total_cycles += ave_arr[i];
-        //             }
-        //             average_cycles = total_cycles / ave_arr_offset;
-        //         }
-
-        // sprintf(buffer[7] + H_RESOLUTION - 26, "Render step length: %06lu", render_t);
-        // sprintf(buffer[6] + H_RESOLUTION - 26, "Rotation s. length: %06lu", rotation_t);
-        // sprintf(buffer[5] + H_RESOLUTION - 26, "Translation length: %06lu", translation_t);
-        // sprintf(buffer[4] + H_RESOLUTION - 26, "Print frame length: %06lu", print_t);
-        // sprintf(buffer[3] + H_RESOLUTION - 27, "Short. frame length: %06lu", ave_arr[120]);
-        // sprintf(buffer[2] + H_RESOLUTION - 26, "Long. frame length: %06lu", ave_arr[121]);
-        // sprintf(buffer[1] + H_RESOLUTION - 26, "Avrg. frame length: %06i", average_cycles);
-        // sprintf(buffer[0] + H_RESOLUTION - 25, "Cycles last frame: %06lu", end);
-        //     }
-        // }
-        // stops frames to look like they're falling
         clock_t render_time = clock() - start;
         print_t = clock();
 
@@ -593,6 +525,7 @@ int main()
 
         // output
         printf("%s\x1b[0m\n", buffer);
+
         print_t = clock() - print_t;
         iii++;
         if (anim_timer > 0)
@@ -681,24 +614,24 @@ int main()
             debug = !debug;
             break;
 
-        case 'a':
-            restore_term();
-            printf("%s\n", "Rotation is measured in radians.");
-            printf("%s", "X rotation per frame: ");
-            str_clean(fgets(str_buffer, 128, stdin), 128);
-            anim_rotation.x = strtod(str_buffer, (void *)0);
-            printf("%s", "Y rotation per frame: ");
-            str_clean(fgets(str_buffer, 128, stdin), 128);
-            anim_rotation.y = strtod(str_buffer, (void *)0);
-            printf("%s", "Z rotation per frame: ");
-            str_clean(fgets(str_buffer, 128, stdin), 128);
-            anim_rotation.z = strtod(str_buffer, (void *)0);
-            printf("%s", "Amount of frames: ");
-            str_clean(fgets(str_buffer, 128, stdin), 128);
-            anim_timer = atoi(str_buffer);
-            set_raw_term();
-            input = 0;
-            break;
+            // case 'a':
+            //     restore_term();
+            //     printf("%s\n", "Rotation is measured in radians.");
+            //     printf("%s", "X rotation per frame: ");
+            //     str_clean(fgets(str_buffer, 128, stdin), 128);
+            //     anim_rotation.x = strtod(str_buffer, (void *)0);
+            //     printf("%s", "Y rotation per frame: ");
+            //     str_clean(fgets(str_buffer, 128, stdin), 128);
+            //     anim_rotation.y = strtod(str_buffer, (void *)0);
+            //     printf("%s", "Z rotation per frame: ");
+            //     str_clean(fgets(str_buffer, 128, stdin), 128);
+            //     anim_rotation.z = strtod(str_buffer, (void *)0);
+            //     printf("%s", "Amount of frames: ");
+            //     str_clean(fgets(str_buffer, 128, stdin), 128);
+            //     anim_timer = atoi(str_buffer);
+            //     set_raw_term();
+            //     input = 0;
+            //     break;
 
         case 's':
             menu_select = !menu_select;
@@ -711,6 +644,5 @@ int main()
             break;
         end = clock() - start;
     }
-    free(mesh);
     return 0;
 }
