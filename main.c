@@ -9,10 +9,14 @@
 #define otherwise else if
 #define otherwisent(condition) otherwise(!condition)
 
-#define H_RESOLUTION 150
-#define V_RESOLUTION 50
+#define H_RESOLUTION 178
+#define V_RESOLUTION 51
+#define HV_DIFF H_RESOLUTION - V_RESOLUTION
 
-char grayscale[256] = {0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 3, 3, 4, 5, 5, 6, 7, 8, 9, 9, 11, 12, 13, 14, 15, 16, 18, 19, 21, 22, 24, 25, 27, 28, 30, 31, 32, 34, 35, 37, 38, 39, 41, 42, 43, 45, 46, 47, 49, 50, 51, 53, 54, 55, 57, 58, 59, 60, 62, 63, 64, 65, 67, 68, 69, 70, 71, 73, 74, 75, 76, 77, 79, 80, 81, 82, 83, 84, 86, 87, 88, 89, 90, 91, 93, 94, 95, 96, 97, 98, 99, 100, 101, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 133, 134, 135, 136, 137, 138, 139, 140, 141, 142, 143, 144, 145, 146, 147, 148, 149, 150, 151, 152, 153, 154, 155, 156, 157, 158, 159, 160, 161, 162, 163, 164, 165, 165, 166, 167, 168, 169, 170, 171, 172, 173, 174, 175, 176, 177, 178, 179, 180, 181, 182, 183, 184, 185, 186, 186, 187, 188, 189, 190, 191, 192, 193, 194, 195, 196, 197, 198, 199, 199, 200, 201, 202, 203, 204, 205, 206, 207, 208, 209, 209, 210, 211, 212, 213, 214, 215, 216, 217, 218, 218, 219, 220, 221, 222, 223, 224, 225, 226, 226, 227, 228, 229, 230, 231, 232, 233, 233, 234, 235, 236, 237, 238, 239, 240, 240, 241, 242, 243, 244, 245, 246, 246, 247, 248, 249, 250, 251, 252, 252, 253, 254, 255};
+#define DEG_TO_RAD 0.0174532925
+#define RAD_TO_DEG 57.2957795
+
+unsigned char grayscale[256] = {0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 3, 3, 4, 5, 5, 6, 7, 8, 9, 9, 11, 12, 13, 14, 15, 16, 18, 19, 21, 22, 24, 25, 27, 28, 30, 31, 32, 34, 35, 37, 38, 39, 41, 42, 43, 45, 46, 47, 49, 50, 51, 53, 54, 55, 57, 58, 59, 60, 62, 63, 64, 65, 67, 68, 69, 70, 71, 73, 74, 75, 76, 77, 79, 80, 81, 82, 83, 84, 86, 87, 88, 89, 90, 91, 93, 94, 95, 96, 97, 98, 99, 100, 101, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 133, 134, 135, 136, 137, 138, 139, 140, 141, 142, 143, 144, 145, 146, 147, 148, 149, 150, 151, 152, 153, 154, 155, 156, 157, 158, 159, 160, 161, 162, 163, 164, 165, 165, 166, 167, 168, 169, 170, 171, 172, 173, 174, 175, 176, 177, 178, 179, 180, 181, 182, 183, 184, 185, 186, 186, 187, 188, 189, 190, 191, 192, 193, 194, 195, 196, 197, 198, 199, 199, 200, 201, 202, 203, 204, 205, 206, 207, 208, 209, 209, 210, 211, 212, 213, 214, 215, 216, 217, 218, 218, 219, 220, 221, 222, 223, 224, 225, 226, 226, 227, 228, 229, 230, 231, 232, 233, 233, 234, 235, 236, 237, 238, 239, 240, 240, 241, 242, 243, 244, 245, 246, 246, 247, 248, 249, 250, 251, 252, 252, 253, 254, 255};
 #define ESC_SQ_LENGTH 20
 #define ROW_ARR_LENGTH (H_RESOLUTION * ESC_SQ_LENGTH + 1)
 
@@ -37,11 +41,10 @@ void print_grayscale()
 // meny string
 struct termios orig_termios;
 
-#define EPSILON 0.000001
+#define EPSILON 0.0001
 
 // program variables
 
-char FOV = 1;
 char menu[] = "+-------------------------------+\n| h=toggle menu |r=reset mesh   |\n| s=switch ctrl.|a=animate      |\n| 8=rotate up   |2=rotate down  |\n| 4=rotate left |6=rotate right |\n| 7=roll left   |9=roll right   |\n| 1=inc. step s.|3=dec. step s. |\n| +=inc. mesh s.|-=dec. step s. |\n+-q=quit-d=debug----------------+\n+-------------------------------+\n| h=toggle menu |r=reset mesh   |\n| s=switch ctrl.|a=animate      |\n| 8=move mesh +y|2=move mesh -y |\n| 4=move mesh -x|6=move mesh +x |\n| 7=move mesh -z|9=move mesh +z |\n| 1=inc. step s.|3=dec. step s. |\n| +=inc. mesh s.|-=dec. step s. |\n+-q=quit-d=debug----------------+\n";
 char str_buffer[128];
 
@@ -52,6 +55,9 @@ typedef struct vec3
 
 #define VEC3_ZERO \
     (vec3) { 0, 0, 0 }
+
+#define PRINT_VEC3(v0) \
+    printf("x:%f y:%f z:%f\n", v0.x, v0.y, v0.z)
 
 vec3 sub(vec3 v0, vec3 v1)
 {
@@ -389,7 +395,6 @@ void set_raw_term()
     // changing them to not exho text input
     struct termios raw = orig_termios;
     raw.c_lflag &= ~(ECHO | ICANON);
-    cfsetspeed(&raw, B230400);
     tcsetattr(STDIN_FILENO, TCSADRAIN, &raw);
     printf("\x1b[?25l");
 }
@@ -429,30 +434,61 @@ int main()
         printf("Object %s loaded succesfully\n", path);
     }
     if (load_failure)
-        return 0;
+        return 1;
 
-    float h_step = FOV / (float)H_RESOLUTION;
-    float h_start = -h_step * (H_RESOLUTION / 2);
-    float v_step = FOV / (float)V_RESOLUTION;
-    float v_start = -v_step * (V_RESOLUTION / 2);
     char buffer[V_RESOLUTION * ROW_ARR_LENGTH];
     char render_menu = 0;
 
     tri render_mesh[poly_count];
     mesh_scale(mesh, mesh, poly_count, 1);
 
-    quat mesh_rotation = QUAT_ZERO;
+    float FOV = 90;
+
     quat frame_rotation = QUAT_TRUE_ZERO;
+    quat mesh_rotation = QUAT_ZERO;
+
+    /*
+    The rotation functions needs a mesh to rotate, and I can't be bother to add one for points.
+    Therefore we shove all the necissary information about the camera into a tri.
+
+    The first tri's verts contain the camera pane, and the second can contain position.
+    This makes it so we can just rotate the camera once for a frame, get the sub-components from the first tri, e1 and e2.
+    Then using those we know the steps and distances between each pixel.
+
+    The second tri contain the cameras position, vert [0] more specifically. vert [1] contains where the pane is.
+    So a camera at z 12 has a tri[1].vert[0] of {0,0,12}, and vert[1] of {0,0,11}. Or rather, it has that after
+    rotation and translation has been applied to it. The anchor can be shoved in the tris normal, and the cameras
+    up direction can be in vert [2].
+    */
+
+    tri camera[2];
+    // set up camera angle
+    quat cam_angle = QUAT_ZERO;
+    quat_rotate(&cam_angle, (quat){M_PI, 0, 1, 0});
+
+    // setting up camera pane
+    float aspect_ratio = (float)V_RESOLUTION / H_RESOLUTION;
+    aspect_ratio *= 2; //terminal font height to width ratio
+    camera[0].verts[0] = (vec3){0.5, aspect_ratio / 2.0, 0};
+    camera[0].verts[1] = (vec3){0.5, -aspect_ratio / 2.0, 0};
+    camera[0].verts[2] = (vec3){-0.5, aspect_ratio / 2.0, 0};
+
+    camera[1].verts[0] = VEC3_ZERO;
+    camera[1].verts[1] = (vec3){0, 0, 1};
+    camera[1].normal = (vec3){0, 0, 12};
+
+    // moving the pane the correct distance from camera
+    mesh_translate(camera, camera, 1, camera[1].verts[1]);
 
     vec3 light_vec3 = (vec3){-0.5, 0, 0.5};
+
     vec3 mesh_anchor = VEC3_ZERO;
     vec3 rotation = VEC3_ZERO;
     vec3 mesh_movement = VEC3_ZERO;
     vec3 anim_rotation = VEC3_ZERO;
-    float step_size = 0.01;
 
-    int iii = 0;
     float depth;
+    float step_size = 0.01;
 
     clock_t end = 0;
     clock_t print_t = 0;
@@ -466,7 +502,7 @@ int main()
         clock_t rotation_t = clock();
         mesh_rotate(mesh, render_mesh, poly_count, &mesh_rotation, frame_rotation);
         rotation_t = clock() - rotation_t;
-        // if I want to do it right scale should be here though I see little reason not to do it in the origin mesh
+        // if I want to do it right scale should be here though I see little reason not to do it on the origin mesh
         // apply translation
         clock_t translation_t = clock();
         mesh_anchor = add(mesh_anchor, mesh_movement);
@@ -480,28 +516,43 @@ int main()
         int rgb, hit, last_rgb = 256, buffer_offset = 0;
         float light_level;
 
-        //used to store u, v, & t componets of the ray check
+        // used to store u, v, & t componets of the ray check
         vec3 temp_coords;
+        // used for storing the render ray_vector
+        vec3 temp_ray;
+        tri temp_cam[2];
+
+        mesh_rotate(camera, temp_cam, 2, &cam_angle, QUAT_TRUE_ZERO);
+        mesh_translate(temp_cam, temp_cam, 2, camera[1].normal);
+
+        vec3 h_step = scale(sub(temp_cam[0].verts[0], temp_cam[0].verts[2]), 1.0 / (H_RESOLUTION + 1));
+        vec3 v_step = scale(sub(temp_cam[0].verts[0], temp_cam[0].verts[1]), 1.0 / (V_RESOLUTION + 1));
+
+        //(vec3){(h_start + (i * h_step)) * 1.4, -v_start - (ii * v_step), -1}
 
         for (int ii = 0; ii < V_RESOLUTION; ii++)
         {
+            temp_ray = sub(temp_cam[0].verts[0], scale(v_step, ii + 1));
             for (int i = 0; i < H_RESOLUTION; i++)
             {
+                temp_ray = sub(temp_ray, h_step);
                 depth = HUGE_VALF;
                 hit = 0;
                 for (int iV = 0; iV < poly_count; iV++)
                 {
-                    if (!ray_collision(render_mesh[iV], (vec3){0, 0, 12}, (vec3){(h_start + (i * h_step)) * 1.4, -v_start - (ii * v_step), -1}, &temp_coords))
+                    if (!ray_collision(render_mesh[iV], temp_cam[1].verts[0], sub(temp_ray, temp_cam[1].verts[0]), &temp_coords))
                         continue;
-                    if (temp_coords.z > depth)
+                    if (temp_coords.z < 0 || temp_coords.z > depth)
                         continue;
                     depth = temp_coords.z;
                     light_level = acosf(dot(light_vec3, render_mesh[iV].normal) / (mag(light_vec3) * mag(render_mesh[iV].normal)));
-                    rgb = (int)floor(light_level * 81.5286);
+                    rgb = grayscale[(int)floor(light_level * 81.2)];
+                    rgb = rgb < 30 ? 30 : rgb;
                     hit = 1;
                 }
-                if (!hit)
-                    rgb = 0;
+                // If we collided with anything hit is 1, nothing happened.
+                // If we didn't it's 0 and rgb turns to 0.
+                rgb *= hit;
 
                 // check if we need a new ESC squence, or if the last one is still good
                 if (last_rgb == rgb)
@@ -525,9 +576,9 @@ int main()
 
         // output
         printf("%s\x1b[0m\n", buffer);
+        printf("%lu\n", render_t);
 
         print_t = clock() - print_t;
-        iii++;
         if (anim_timer > 0)
         {
             anim_timer--;

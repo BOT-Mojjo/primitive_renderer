@@ -16,6 +16,7 @@
   - [x] Does macro-ifying small functions affect performance?
     - no it does not.
   - [ ] AoS vs SoA. Currently I'm using AoS
+- [x] Fixing FOV and inconsistent viewport
 - [ ] Camera movement
 - [ ] multiple meshes. mesh logic
   - [ ] mesh heirarcy. What renders on top
